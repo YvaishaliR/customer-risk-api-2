@@ -16,7 +16,7 @@
 |---------|---------------------------------------------------------|----------|--------|
 | S1-T1   | Create project directory structure and `.env` contract  | VERIFIED |        |
 | S1-T2   | Write `docker-compose.yml` with all five services       | VERIFIED |        |
-| S1-T3   | Write stub Dockerfiles for all three custom services    | PENDING  |        |
+| S1-T3   | Write stub Dockerfiles for all three custom services    | VERIFIED |        |
 | S1-T4   | Smoke test: full `docker compose up` with stubs         | PENDING  |        |
 
 <!-- Update status: PENDING → IN PROGRESS → VERIFIED → (optionally BLOCKED) -->
@@ -54,7 +54,7 @@
 
 <!-- Fill in when all tasks in this session are VERIFIED. -->
 **Session integration check:** [ ] PASSED  [ ] FAILED (see notes)
-**All tasks verified:** [ ] Yes  [x] No — S1-T3 and S1-T4 still PENDING
+**All tasks verified:** [ ] Yes  [x] No — S1-T4 still PENDING
 **PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** IN PROGRESS
 **Engineer sign-off:** [ENGINEER: NAME AND DATE — do not leave blank before committing]

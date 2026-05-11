@@ -8,8 +8,9 @@
 
 ## Task S1-T1 — Create project directory structure and `.env` contract
 ## Task S1-T2 — Write `docker-compose.yml` with all five services
+## Task S1-T3 — Write stub Dockerfiles for all three custom services
 
-<!-- S1-T3 and S1-T4 will be added as each task is completed. -->
+<!-- S1-T4 will be added when completed. -->
 
 ---
 
@@ -22,6 +23,10 @@ Source: EXECUTION_PLAN.md — S1-T1 test cases.
 | S1-T1 TC-1  | `.env.example` exists and contains all 6 keys         | All 6 keys present, no real secret values         | PASS — `grep -c "=" .env.example` returns 6 |
 | S1-T1 TC-2  | `.env` is absent from the repository                  | `.gitignore` entry prevents accidental commit     | PASS — `git check-ignore -q .env` exits 0 |
 | S1-T1 TC-3  | All 3 subdirectories exist                            | `nginx/`, `fastapi/`, `db-init/` each present     | PASS — all three directories confirmed |
+| S1-T3 TC-1  | `docker compose build` exits 0                        | All three images build without error              | PASS — nginx, db-init, fastapi all `Built`, exit code 0 |
+| S1-T3 TC-2  | nginx Dockerfile references correct base image        | `nginx:1.25-alpine`                               | PASS — `head -1 nginx/Dockerfile` confirmed |
+| S1-T3 TC-2  | fastapi Dockerfile references correct base image      | `python:3.10-slim`                                | PASS — `head -1 fastapi/Dockerfile` confirmed |
+| S1-T3 TC-2  | db-init Dockerfile references correct base image      | `python:3.10-slim`                                | PASS — `head -1 db-init/Dockerfile` confirmed |
 
 ### Test Cases Added During Session
 
@@ -40,6 +45,8 @@ S1-T2 TC-1 | `docker compose config` will parse without error — exit code 0, n
 S1-T2 TC-2 | `depends_on` chain will be: db-init waits on postgres (service_healthy); fastapi waits on db-init (service_completed_successfully); nginx waits on fastapi (service_healthy).
 S1-T2 TC-3 | FastAPI will have no `ports:` entry — port 8000 exposed internally only via `expose:`.
 S1-T2 TC-4 | `pgdata` named volume will be declared in the top-level `volumes:` block.
+S1-T3 TC-1 | `docker compose build` will exit 0 — all three stub images build from their respective Dockerfiles without error.
+S1-T3 TC-2 | Each Dockerfile's first line will be exactly the required base image: `nginx:1.25-alpine` for nginx, `python:3.10-slim` for fastapi and db-init.
 
 ---
 
@@ -65,6 +72,16 @@ Items not tested:
 
 Decision: all items are runtime behaviours that require running containers. They are correctly deferred to S1-T4 (smoke test). No additional test cases added for S1-T2.
 
+S1-T3 — What did you not test in this task?
+
+Items not tested:
+- Whether the stub fastapi image actually starts and responds to `GET /health` (requires a running container — tested in S1-T4).
+- Whether the stub db-init image prints "db-init: no-op stub" and exits 0 at runtime (requires a running container — tested in S1-T4).
+- Whether the stub nginx image starts and returns 200 for all requests (requires a running container — tested in S1-T4).
+- Whether `docker compose build` still passes after the real application files are added in later sessions (regression risk — each session's build step covers this).
+
+Decision: all items require running containers or belong to later sessions. Correctly deferred to S1-T4. No additional test cases added for S1-T3.
+
 ---
 
 ### Code Review
@@ -72,6 +89,7 @@ Decision: all items are runtime behaviours that require running containers. They
 S1-T1 — No invariant touched. No code review required.
 
 S1-T2 — INV-03 — Review `docker-compose.yml`: confirm startup sequencing via `depends_on`.
+S1-T3 — No invariant touched. No code review required.
 
 Review finding:
 - `fastapi` uses `condition: service_completed_successfully` on `db-init` — confirmed. This requires db-init to exit 0, not merely start.
@@ -93,15 +111,17 @@ S1-T2: No explicit `networks:` block declared. Task spec says "all services shou
 
 S1-T2: `start_period` not added to healthchecks. Task spec does not mention it; minimum implementation used. Flagged for S1-T4 in case startup timing requires adjustment.
 
+S1-T3: No `WORKDIR` set in any stub Dockerfile. Task spec says "minimum needed to pass `docker compose build`". WORKDIR is not required for the stubs to build or run. The real fastapi Dockerfile (S3-T1) will add `WORKDIR /app`. Correct per scope.
+
 ---
 
 ### Verification Verdict
 
-[x] All planned cases passed (S1-T1: TC-1–3; S1-T2: TC-1–4)
-[x] Test Cases Added During Session section complete — None discovered (both tasks)
-[x] CC challenge reviewed for S1-T1 and S1-T2
-[x] Code review complete — INV-03 reviewed for S1-T2; S1-T1 had no invariant touch
+[x] All planned cases passed (S1-T1: TC-1–3; S1-T2: TC-1–4; S1-T3: TC-1–2)
+[x] Test Cases Added During Session section complete — None discovered (all three tasks)
+[x] CC challenge reviewed for S1-T1, S1-T2, and S1-T3
+[x] Code review complete — INV-03 reviewed for S1-T2; S1-T1 and S1-T3 had no invariant touch
 [x] Scope decisions documented
 
-**Status: VERIFIED (S1-T1 and S1-T2 — session IN PROGRESS)**
+**Status: VERIFIED (S1-T1, S1-T2, and S1-T3 — session IN PROGRESS)**
 **Engineer sign-off:** y vaishali rao - 2026-05-11
