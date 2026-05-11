@@ -6,7 +6,7 @@
 **Engineer:** y vaishali rao
 **Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
 **Claude.md version:** v1.0
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 
 ---
 
@@ -17,7 +17,7 @@
 | S1-T1   | Create project directory structure and `.env` contract  | VERIFIED |        |
 | S1-T2   | Write `docker-compose.yml` with all five services       | VERIFIED |        |
 | S1-T3   | Write stub Dockerfiles for all three custom services    | VERIFIED |        |
-| S1-T4   | Smoke test: full `docker compose up` with stubs         | PENDING  |        |
+| S1-T4   | Smoke test: full `docker compose up` with stubs         | VERIFIED |        |
 
 <!-- Update status: PENDING → IN PROGRESS → VERIFIED → (optionally BLOCKED) -->
 <!-- Record commit hash after each VERIFIED task. Use 'Task N.N — ' prefix consistently. -->
@@ -36,9 +36,10 @@
 
 ## Deviations
 
-| Task | Deviation observed | Action taken |
-|------|--------------------|--------------|
-|      | None               |              |
+| Task  | Deviation observed | Action taken |
+|-------|--------------------|--------------|
+| S1-T4 | `fastapi/Dockerfile` stub did not include `curl`, which is required by the `docker-compose.yml` healthcheck (`curl -f http://localhost:8000/health`). Without it, the fastapi healthcheck fails permanently, blocking nginx from ever starting. | Added `RUN apt-get update && apt-get install -y --no-install-recommends curl` to the fastapi stub Dockerfile. Flagged as a deviation from the S1-T3 "minimum" spec; driven by S1-T4 smoke test requirement. The real Dockerfile (S3-T1) will carry this forward. |
+| S1-T4 | `docker compose ps -q db-init` returns nothing for exited containers — only running containers appear without `--all`. This caused the db-init state check to read `unknown / exit=-1` indefinitely. | Changed to `docker compose ps -q --all db-init` in `verify/s1_smoke.sh`. This is a Docker Compose CLI behaviour, not a project configuration issue. |
 
 ---
 
@@ -53,8 +54,8 @@
 ## Session Completion
 
 <!-- Fill in when all tasks in this session are VERIFIED. -->
-**Session integration check:** [ ] PASSED  [ ] FAILED (see notes)
-**All tasks verified:** [ ] Yes  [x] No — S1-T4 still PENDING
+**Session integration check:** [x] PASSED
+**All tasks verified:** [x] Yes
 **PR raised:** [ ] Yes — [PR link or number]
-**Status updated to:** IN PROGRESS
-**Engineer sign-off:** [ENGINEER: NAME AND DATE — do not leave blank before committing]
+**Status updated to:** COMPLETE
+**Engineer sign-off:** y vaishali rao — 2026-05-11
