@@ -170,8 +170,9 @@ S1-T4: `fastapi/Dockerfile` stub modified to install `curl` (deviation from S1-T
 
 ## Task S2-T1 — Write the schema DDL
 ## Task S2-T2 — Write seed data
+## Task S2-T3 — Write the `db-init` Python script
 
-<!-- S2-T3 and S2-T4 will be added as each task is completed. -->
+<!-- S2-T4 will be added when completed. -->
 
 ---
 
@@ -189,6 +190,10 @@ Source: EXECUTION_PLAN.md — S2-T1 test cases.
 | S2-T2 TC-1 | All 3 tiers represented                                         | At least 1 customer with each tier       | PASS — 3 customers each for LOW, MEDIUM, HIGH (9 total)                       |
 | S2-T2 TC-2 | Every customer has ≥ 2 factors                                  | No `customer_id` has < 2 rows in `risk_factors` | PASS — 0 violators; range 2–3 factors per customer                     |
 | S2-T2 TC-3 | Re-running `seed.sql` is safe                                   | No errors, row counts unchanged          | PASS — all 31 statements return `INSERT 0 0`; counts stable at 9 / 22        |
+| S2-T3 TC-1 | First run against empty database                                | Exits 0, tables created, seed loaded     | PASS — printed `schema applied`, `seed data loaded`, exit code 0              |
+| S2-T3 TC-2 | Second run against populated database                           | Exits 0, no errors, row counts unchanged | PASS — exit 0; customers=9, risk_factors=22 unchanged                         |
+| S2-T3 TC-3 | Postgres not yet ready (unreachable host)                       | Retries up to 10 times, then exits 1     | PASS — all 10 `attempt N/10 failed` messages, `could not connect`, exit 1     |
+| S2-T3 TC-4 | Wrong `POSTGRES_PASSWORD`                                       | Exits 1 with authentication error        | PASS — `FATAL: password authentication failed` × 10, exit 1                  |
 
 ### Test Cases Added During Session
 
@@ -208,6 +213,10 @@ S2-T1 TC-5 | Re-running the schema DDL against an already-initialised database w
 S2-T2 TC-1 | All three tier values (LOW, MEDIUM, HIGH) will be present in the `customers` table with at least 3 customers each.
 S2-T2 TC-2 | Every `customer_id` in `customers` will have at least 2 corresponding rows in `risk_factors` — the subquery counting violators will return 0.
 S2-T2 TC-3 | A second run of `seed.sql` will produce `INSERT 0 0` for every statement (conflict on PK or UNIQUE constraint) and leave row counts unchanged.
+S2-T3 TC-1 | `init.py` will connect on the first attempt, execute schema.sql and seed.sql in sequence, print `db-init: schema applied` and `db-init: seed data loaded`, and exit 0.
+S2-T3 TC-2 | Re-running `init.py` against a populated database will exit 0 with no data changes — `IF NOT EXISTS` and `ON CONFLICT DO NOTHING` absorb all re-runs.
+S2-T3 TC-3 | With an unreachable Postgres host, `init.py` will print 10 `attempt N/10 failed` messages, then `could not connect after 10 attempts — exiting`, and exit 1.
+S2-T3 TC-4 | With a wrong password, `init.py` will exhaust all 10 retry attempts (each returning `FATAL: password authentication failed`) and exit 1.
 
 ---
 
@@ -232,12 +241,24 @@ Items not tested:
 
 Decision: content quality is out of scope for structural verification. customer_id format is enforced by the API layer. The schema patch re-verification was performed informally — no additional test cases added, but flagged in deviations.
 
+S2-T3 — What did you not test in this task?
+
+Items not tested:
+- Whether `init.py` correctly handles a Postgres host that is reachable but not yet accepting queries (TCP connect succeeds, but `pg_isready` would fail). The retry loop catches `psycopg2.OperationalError` which covers both TCP refusal and query-layer unavailability — behaviour is correct but not explicitly exercised.
+- Whether `sys.exit(1)` inside the `try/finally` block correctly closes the connection before exiting (the `finally` clause runs on `sys.exit` — this is Python-guaranteed behaviour, not tested explicitly).
+- Whether a malformed `schema.sql` or `seed.sql` file causes the correct `except` branch to fire and exit 1 (file corruption scenario).
+
+Decision: TCP-up-but-not-ready is covered by the same `OperationalError` path as TC-3 — no separate test needed. `finally`-on-`sys.exit` is a Python language guarantee, not a test gap. Malformed SQL is an infrastructure concern outside normal deployment scope. No additional test cases added.
+
+Tooling note: early TC-3/TC-4 runs used `| head -N` and `&&` to capture exit codes — both approaches masked the container exit code. Correct pattern established: `docker run ...; echo "EXIT:$?"` using `;` (unconditional) rather than `&&` (short-circuits on non-zero). Not a code issue.
+
 ---
 
 ### Code Review
 
 S2-T1 — INV-06, INV-08, INV-09 — Review `db-init/schema.sql`: confirm constraint definitions.
 S2-T2 — INV-06, INV-07, INV-08, INV-09 — Review `db-init/seed.sql`: confirm tier values, factor presence, FK integrity, no duplicate customer_id.
+S2-T3 — INV-03, INV-05 — Review `db-init/init.py`: confirm exit code behaviour and write-only scope.
 
 S2-T1 review finding:
 - `tier VARCHAR(10) NOT NULL CHECK (tier IN ('LOW', 'MEDIUM', 'HIGH'))` — both NOT NULL and the value-set CHECK are present. Constraint name auto-assigned as `customers_tier_check`. Confirmed — satisfies INV-06.
@@ -251,6 +272,12 @@ S2-T2 review finding:
 - Every customer_id in `customers` inserts has at least 2 corresponding inserts in `risk_factors` — verified by TC-2 (0 violators). Confirmed — satisfies INV-07.
 - Every `risk_factors` insert references a `customer_id` that exists in the `customers` block immediately above it in the file. No orphaned factor insert exists. Confirmed — satisfies INV-08.
 - No two customer INSERTs share a `customer_id` value (CUST001–CUST009 are all distinct). Confirmed — satisfies INV-09.
+
+S2-T3 review finding:
+- `sys.exit(1)` is used explicitly on all failure paths (connection exhausted, schema failure, seed failure) — not `sys.exit()` or `raise`. Confirmed — INV-03: db-init exit code 0 is the signal that triggers fastapi startup via `condition: service_completed_successfully`.
+- The script executes only `schema.sql` and `seed.sql`. Both files contain only DDL (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`) and `INSERT ... ON CONFLICT DO NOTHING`. No UPDATE, DELETE, or runtime SELECT is present in `init.py`. Confirmed — satisfies INV-05: all writes confined to db-init execution window.
+- `conn.close()` is in a `finally` block that runs on both success and `sys.exit(1)` — connection is always closed cleanly. Confirmed.
+- Only `os`, `sys`, `time`, and `psycopg2` are imported — no ORM, no additional libraries. Confirmed.
 
 ---
 

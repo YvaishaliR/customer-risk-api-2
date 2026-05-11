@@ -79,7 +79,7 @@
 |---------|---------------------------------------------------|----------|--------|
 | S2-T1   | Write the schema DDL                              | VERIFIED |        |
 | S2-T2   | Write seed data                                   | VERIFIED |        |
-| S2-T3   | Write the `db-init` Python script                 | PENDING  |        |
+| S2-T3   | Write the `db-init` Python script                 | VERIFIED |        |
 | S2-T4   | Integration check: db-init in full compose stack  | PENDING  |        |
 
 ---
@@ -112,7 +112,7 @@
 ## Session Completion
 
 **Session integration check:** [ ] PASSED  [ ] FAILED (see notes)
-**All tasks verified:** [ ] Yes  [x] No — S2-T3 and S2-T4 still PENDING
+**All tasks verified:** [ ] Yes  [x] No — S2-T4 still PENDING
 **PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** IN PROGRESS
 **Engineer sign-off:** [ENGINEER: NAME AND DATE — do not leave blank before committing]
