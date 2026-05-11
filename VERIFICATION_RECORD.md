@@ -480,3 +480,94 @@ S3-T3: Image name resolved dynamically via `docker images --format` after `docke
 
 **Status: VERIFIED — Session 3 COMPLETE**
 **Engineer sign-off:** y vaishali rao — 2026-05-11
+
+---
+---
+
+# VERIFICATION_RECORD — Session 4: FastAPI Core: Risk Lookup Endpoint
+
+**Session:** Session 4 — FastAPI core: risk lookup endpoint
+**Date:** 2026-05-11
+**Engineer:** y vaishali rao
+
+---
+
+## Task S4-T1 — Implement database connection with startup retry loop
+
+<!-- S4-T2 and S4-T3 will be added when completed. -->
+
+---
+
+### Test Cases Applied
+
+Source: EXECUTION_PLAN.md — S4-T1 test cases.
+
+| Case       | Scenario                                                            | Expected                                         | Result                                                                                     |
+|------------|---------------------------------------------------------------------|--------------------------------------------------|--------------------------------------------------------------------------------------------|
+| S4-T1 TC-1 | Startup with Postgres available                                     | Connects within 3 attempts, logs success         | PASS — connected on attempt 1; `"database connection established"` logged before startup complete |
+| S4-T1 TC-2 | Startup with Postgres unavailable (host 192.0.2.1)                  | Retries 10 times, then `RuntimeError`, exit non-zero | PASS — all 10 attempt messages logged; `RuntimeError: Database connection failed`; "Application startup failed. Exiting.", exit 3 |
+| S4-T1 TC-3 | `GET /health` after DB connect                                      | HTTP 200                                         | PASS — `docker compose exec fastapi curl` returns 200 with correct key                     |
+
+### Test Cases Added During Session
+
+| Case  | Scenario        | Expected | Result | Source |
+|-------|-----------------|----------|--------|--------|
+| ADD-1 | None discovered | | | |
+
+---
+
+### Prediction Statement
+
+S4-T1 TC-1 | `_connect()` will succeed on the first attempt (postgres is healthy before fastapi starts per `depends_on`). The log line `"FastAPI: database connection established"` will appear between "Waiting for application startup." and "Application startup complete." in the uvicorn output.
+S4-T1 TC-2 | With `POSTGRES_HOST=192.0.2.1` (an unroutable RFC 5737 address), every `psycopg2.connect()` call will raise `OperationalError`. After attempt 10, `_connect()` raises `RuntimeError("Database connection failed")`, which propagates through the lifespan context manager. Uvicorn catches this as a startup failure, logs the traceback, and exits non-zero without accepting any connections.
+S4-T1 TC-3 | The lifespan connects to the DB on startup before uvicorn signals readiness. The `/health` route handler does not use the DB connection, so a successful DB connect has no negative effect on the endpoint. HTTP 200 will be returned.
+
+---
+
+### CC Challenge Output
+
+S4-T1 — What did you not test in this task?
+
+Items not tested:
+- Whether `get_db_conn()` correctly attempts reconnection when `conn.closed` is non-zero — the reconnect path was not exercised (no test dropped the connection mid-run).
+- Whether `HTTPException(503)` is raised correctly when the reconnect in `get_db_conn()` also fails — this path was not run as it requires no route that calls `get_db_conn()` yet.
+- Whether the `finally` block in `lifespan` correctly closes the connection on normal shutdown (no explicit shutdown test was performed — teardown was via `docker compose down`).
+- Whether `autocommit=False` is correctly set on the connection object (set immediately after `psycopg2.connect()` returns; not asserted explicitly).
+
+Decision: `get_db_conn()` is tested end-to-end in S4-T2 when the risk endpoint uses it. The `finally` close path is exercised on every `docker compose down`. `autocommit=False` is a psycopg2 default and is confirmed by code inspection. No additional test cases added.
+
+---
+
+### Code Review
+
+S4-T1 — INV-03 — Review `fastapi/main.py`: confirm startup retry loop and failure behaviour.
+
+S4-T1 review finding:
+- `_connect()` attempts `psycopg2.connect()` up to 10 times with `time.sleep(3)` between failures. On success, `SELECT 1` is executed to confirm query readiness (not just TCP connectivity). Confirmed — satisfies INV-03: FastAPI will not accept requests if the DB is not ready.
+- `raise RuntimeError("Database connection failed")` is raised after all 10 attempts fail. Uvicorn propagates this as a fatal startup error, printing "Application startup failed. Exiting." and exiting non-zero (exit 3 confirmed). The ASGI app never calls `startup_complete`, so no requests are accepted. Confirmed — satisfies INV-03.
+- The `lifespan` context manager stores the connection as `app.state.db` before `yield`. The `finally` block closes it if `not app.state.db.closed` — psycopg2 uses an integer `closed` attribute (0 = open, nonzero = closed). Confirmed.
+- `conn.autocommit = False` is set after connect — psycopg2 default, but set explicitly per spec. Confirmed.
+- No credential values (`_DB_PASS`, `_DB_USER`, `_DB_NAME`, `_DB_HOST`) appear in any log statement. Only `"database connection established"` is logged on success; only `"waiting for database... (attempt N/10)"` on failure. Confirmed — INV-02 not implicated.
+
+---
+
+### Scope Decisions
+
+S4-T1: TC-3 verified via `docker compose exec fastapi curl` rather than `curl localhost:8000` from the host. Fastapi's compose service uses `expose: 8000` (no host port mapping) — a host-side curl fails with connection refused. `docker compose exec` hits the same endpoint from inside the container network and is equivalent. Recorded as a deviation in SESSION_LOG.md.
+
+S4-T1: `_DB_NAME`, `_DB_USER`, `_DB_PASS` are read with `os.environ["KEY"]` (raising `KeyError` if unset), while `_DB_HOST` uses `os.environ.get("POSTGRES_HOST", "postgres")` (default per spec). A missing required DB variable causes a `KeyError` at module load — same failure mode as a missing `API_KEY`, exits before accepting requests.
+
+S4-T1: `get_db_conn()` is defined in this task but not wired to any route yet — it will be used as a dependency in S4-T2. Its presence here is required by the task spec and does not expand scope.
+
+---
+
+### Verification Verdict
+
+[x] All planned cases passed (S4-T1: TC-1–3)
+[x] Test Cases Added During Session section complete — None discovered
+[x] CC challenge reviewed for S4-T1
+[x] Code review complete — INV-03 reviewed for S4-T1
+[x] Scope decisions documented
+
+**Status: VERIFIED (S4-T1 — session IN PROGRESS)**
+**Engineer sign-off:** y vaishali rao — 2026-05-11

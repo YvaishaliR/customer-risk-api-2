@@ -173,3 +173,58 @@
 **PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** COMPLETE
 **Engineer sign-off:** y vaishali rao — 2026-05-11
+
+---
+---
+
+## Session: Session 4 — FastAPI Core: Risk Lookup Endpoint
+
+**Date started:** 2026-05-11
+**Engineer:** y vaishali rao
+**Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
+**Claude.md version:** v1.0
+**Status:** IN PROGRESS
+
+---
+
+## Tasks
+
+| Task ID | Name                                                        | Status   | Commit |
+|---------|-------------------------------------------------------------|----------|--------|
+| S4-T1   | Implement database connection with startup retry loop       | VERIFIED |        |
+| S4-T2   | Implement the `GET /api/risk/{customer_id}` endpoint        | PENDING  |        |
+| S4-T3   | Integration check: FastAPI + database end-to-end            | PENDING  |        |
+
+---
+
+## Decision Log
+
+| Task  | Decision made | Rationale |
+|-------|---------------|-----------|
+| S4-T1 | None — no unplanned decisions made. | |
+
+---
+
+## Deviations
+
+| Task  | Deviation observed | Action taken |
+|-------|--------------------|--------------|
+| S4-T1 | TC-3 verification command curls `localhost:8000` from the host, but fastapi has no host port mapping (`expose:` only). | Used `docker compose exec fastapi curl` instead — hits the same endpoint from inside the container network. Equivalent for confirming HTTP 200. Flagged; no code change required. |
+
+---
+
+## Claude.md Changes
+
+| Change | Reason | New Claude.md version | Tasks re-verified |
+|--------|--------|-----------------------|-------------------|
+| None   |        |                       |                   |
+
+---
+
+## Session Completion
+
+**Session integration check:** [ ] PASSED  [ ] FAILED (see notes)
+**All tasks verified:** [ ] Yes  [x] No — S4-T2 and S4-T3 still PENDING
+**PR raised:** [ ] Yes — [PR link or number]
+**Status updated to:** IN PROGRESS
+**Engineer sign-off:** [ENGINEER: NAME AND DATE — do not leave blank before committing]
