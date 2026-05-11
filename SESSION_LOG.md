@@ -183,7 +183,7 @@
 **Engineer:** y vaishali rao
 **Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
 **Claude.md version:** v1.0
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 
 ---
 
@@ -193,7 +193,7 @@
 |---------|-------------------------------------------------------------|----------|--------|
 | S4-T1   | Implement database connection with startup retry loop       | VERIFIED |        |
 | S4-T2   | Implement the `GET /api/risk/{customer_id}` endpoint        | VERIFIED |        |
-| S4-T3   | Integration check: FastAPI + database end-to-end            | PENDING  |        |
+| S4-T3   | Integration check: FastAPI + database end-to-end            | VERIFIED |        |
 
 ---
 
@@ -225,8 +225,8 @@
 
 ## Session Completion
 
-**Session integration check:** [ ] PASSED  [ ] FAILED (see notes)
-**All tasks verified:** [ ] Yes  [x] No — S4-T2 and S4-T3 still PENDING
+**Session integration check:** [x] PASSED
+**All tasks verified:** [x] Yes
 **PR raised:** [ ] Yes — [PR link or number]
-**Status updated to:** IN PROGRESS
-**Engineer sign-off:** [ENGINEER: NAME AND DATE — do not leave blank before committing]
+**Status updated to:** COMPLETE
+**Engineer sign-off:** y vaishali rao — 2026-05-11

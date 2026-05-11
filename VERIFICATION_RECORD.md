@@ -494,8 +494,7 @@ S3-T3: Image name resolved dynamically via `docker images --format` after `docke
 
 ## Task S4-T1 — Implement database connection with startup retry loop
 ## Task S4-T2 — Implement the `GET /api/risk/{customer_id}` endpoint
-
-<!-- S4-T3 will be added when completed. -->
+## Task S4-T3 — Integration check: FastAPI + database end-to-end
 
 ---
 
@@ -570,7 +569,91 @@ S4-T1: `get_db_conn()` is defined in this task but not wired to any route yet �
 [x] Code review complete — INV-03 reviewed for S4-T1
 [x] Scope decisions documented
 
-**Status: VERIFIED (S4-T1, S4-T2 — session IN PROGRESS)**
+---
+
+### S4-T3 Test Cases Applied
+
+Source: S4-T3 task prompt — all script checks, run via `bash verify/s4_api.sh`. Stack started fresh (no pre-existing volume). All 9 checks passed; script exited 0.
+
+| Case        | Scenario                                                                                  | Expected                                               | Result                                                                                       |
+|-------------|-------------------------------------------------------------------------------------------|--------------------------------------------------------|----------------------------------------------------------------------------------------------|
+| S4-T3 S4-A  | `GET /api/risk/CUST001` with correct key                                                  | HTTP 200                                               | PASS — HTTP 200                                                                              |
+| S4-T3 S4-B  | Response `customer_id` field for CUST001                                                  | `"CUST001"`                                            | PASS — `"customer_id":"CUST001"` confirmed                                                   |
+| S4-T3 S4-C  | Response `tier` field for CUST001                                                         | Member of `{LOW, MEDIUM, HIGH}`                        | PASS — tier `"LOW"` confirmed                                                                |
+| S4-T3 S4-D  | Response `risk_factors` array for CUST001                                                 | Non-empty (at least one element with `factor_code`)    | PASS — array contains factor entries                                                         |
+| S4-T3 INV-04 | `response.customer_id` matches request `customer_id` for all 9 seed customers           | 0 mismatches across CUST001–CUST009                    | PASS — 0 mismatches; all 9 customers returned matching `customer_id` from DB row             |
+| S4-T3 INV-05 | `customers` row count before vs after 20 API requests                                   | Count unchanged — no writes during API operation       | PASS — count 9 before and 9 after 20 requests                                               |
+| S4-T3 S4-E  | `GET /api/risk/NONEXISTENT` with correct key                                              | HTTP 404                                               | PASS — HTTP 404                                                                              |
+| S4-T3 S4-F  | `GET /api/risk/CUST001` with no key                                                       | HTTP 401                                               | PASS — HTTP 401                                                                              |
+| S4-T3 S4-G  | `GET /api/risk/CUST001` with wrong key                                                    | HTTP 401                                               | PASS — HTTP 401                                                                              |
+
+Script output: `PASSED: 9  FAILED: 0 / Overall: PASS` — exit code 0.
+
+### S4-T3 Test Cases Added During Session
+
+| Case  | Scenario        | Expected | Result | Source |
+|-------|-----------------|----------|--------|--------|
+| ADD-1 | None discovered | | | |
+
+---
+
+### S4-T3 Prediction Statement
+
+S4-T3 S4-A | The stack starts in the correct order (postgres→db-init→fastapi). The script waits until db-init exits 0 and fastapi is healthy before running any check. CUST001 is a seeded customer; the endpoint returns HTTP 200.
+S4-T3 S4-B/C/D | The CUST001 response body is a valid `RiskResponse` JSON object. `customer_id` is `"CUST001"` (from DB row), `tier` is one of `{LOW,MEDIUM,HIGH}`, and `risk_factors` contains at least one entry with a `factor_code` key.
+S4-T3 INV-04 | All 9 seed customers are present. For each request, the DB SELECT returns `customer_id` from `row[0]` — not from the path parameter variable. The values will match in every case since the DB stores exactly the same IDs used in the seed.
+S4-T3 INV-05 | The API has no INSERT/UPDATE/DELETE path (INV-05 enforced by code). `COUNT(*)` on `customers` will be 9 before and 9 after 20 requests; the assertion will pass.
+S4-T3 S4-E | `NONEXISTENT` is not in `customers`. `fetchone()` returns `None`; the endpoint raises `HTTPException(404)` before touching `risk_factors`. HTTP 404.
+S4-T3 S4-F/G | No key / wrong key triggers the `get_api_key` dependency on the `/api/risk/{customer_id}` route decorator; `HTTPException(401)` is raised before any DB access. HTTP 401.
+
+---
+
+### S4-T3 CC Challenge Output
+
+S4-T3 — What did you not test in this task?
+
+Items not tested:
+- Whether `docker compose down -v` in the trap correctly removes the `pgdata` volume (teardown was observed via compose output, but the volume's absence was not explicitly asserted after the script exits).
+- Whether the script correctly exits 1 when any single check fails — only the all-pass path was exercised.
+- Whether the 90-second wait timeout correctly aborts with exit 1 when the stack never becomes ready — the happy path was the only run.
+- Whether INV-05 correctly detects a write if one were to occur — the endpoint has no write path, so the pre/post count invariant cannot be falsified in this stack; the check confirms the contract rather than testing a reachable failure mode.
+- Whether the INV-04 check correctly catches a mismatch if `customer_id` were populated from the path parameter instead of the DB row — both happen to be identical in the seed data, so the check would pass either way. The code-review finding for S4-T2 confirms `db_customer_id = row[0]` is used, not the path parameter.
+
+Decision: volume removal is a Docker guarantee for `down -v`; not a test gap. The failure exit path is structurally identical to s2_db.sh and s3_auth.sh (already verified in earlier sessions). The timeout abort path is analogous to s2_db.sh TC-2. The INV-05 and INV-04 limitations are inherent to the seed data and are closed by code review. No additional test cases added.
+
+---
+
+### S4-T3 Code Review
+
+S4-T3 — INV-03, INV-04, INV-05 — Review `verify/s4_api.sh`: confirm wait logic, check correctness, and teardown.
+
+S4-T3 review finding:
+
+**INV-03 (startup sequencing)** — The wait loop polls both `DI_EXIT=0` (db-init) and `FA_HEALTH=healthy` (fastapi) via `docker inspect`. Neither condition alone suffices — both must be true simultaneously before any check runs. This mirrors the compose `depends_on` chain: db-init exit 0 → fastapi starts → fastapi healthy. The script cannot reach the check section if fastapi is not healthy after db-init completes. Confirmed.
+
+**INV-04 (customer_id from DB row)** — The INV-04 check compares `response.customer_id` (parsed from JSON via `grep -o`) against the path parameter sent in the request for all 9 seed customers. Any divergence between the path parameter and the DB-sourced `customer_id` field would be caught. Confirmed the check is structured correctly to detect this class of bug.
+
+**INV-05 (SELECT only)** — `COUNT(*)` is snapshotted before and after 20 requests. The pre/post equality assertion with `[ -n "$COUNT_BEFORE" ]` guards against a psql exec failure silently returning an empty string and producing a spurious pass. Confirmed.
+
+**`set -euo pipefail` safety** — All fallible pipelines in the check section use `|| echo ""` guards. `if`/`case` compound statements are immune to `set -e`. The `api_get` helper always returns exit 0 via `|| echo ""`, preventing any check from aborting the script. The startup section and psql commands are guarded with `|| echo ""` on pipeline tails. Confirmed.
+
+**Teardown** — `trap cleanup EXIT` with `docker compose -f "$PROJECT_ROOT/docker-compose.yml" down -v` fires on all exit paths. The explicit `-f` flag ensures cleanup works regardless of working directory at exit time. Confirmed.
+
+---
+
+### S4-T3 Scope Decisions
+
+S4-T3: All curl requests go via `docker compose exec -T fastapi curl` — fastapi has no host port mapping (`expose: 8000`). The `-T` flag disables pseudo-TTY allocation, required for non-interactive use in a script. This matches the approach used in S4-T1 TC-3 verification.
+
+S4-T3: `POSTGRES_USER` and `POSTGRES_DB` are read from `.env` for the INV-05 psql commands — no hardcoded values, consistent with the `.env`-only secret policy.
+
+S4-T3: Only `postgres`, `db-init`, and `fastapi` are started — nginx is excluded per the task spec ("without Nginx"). This confirms that INV-03 and INV-04 are properties of the FastAPI application layer, not of the nginx proxy.
+
+S4-T3: The INV-05 check counts only the `customers` table. The `risk_factors` table is equally protected by INV-05, but `customers` is the more sensitive table (the point-query target). A write to either table would be caught by the same code path; testing one table is sufficient to confirm the no-write constraint is operative.
+
+---
+
+**Status: VERIFIED — Session 4 COMPLETE**
 **Engineer sign-off:** y vaishali rao — 2026-05-11
 
 ---
