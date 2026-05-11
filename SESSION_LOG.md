@@ -116,3 +116,58 @@
 **PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** COMPLETE
 **Engineer sign-off:** y vaishali rao — 2026-05-11
+
+---
+---
+
+## Session: Session 3 — FastAPI Core: Authentication and Health
+
+**Date started:** 2026-05-11
+**Engineer:** y vaishali rao
+**Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
+**Claude.md version:** v1.0
+**Status:** IN PROGRESS
+
+---
+
+## Tasks
+
+| Task ID | Name                                                        | Status   | Commit |
+|---------|-------------------------------------------------------------|----------|--------|
+| S3-T1   | Set up FastAPI project structure and dependencies           | VERIFIED |        |
+| S3-T2   | Implement API key authentication dependency                 | PENDING  |        |
+| S3-T3   | Verify auth enforcement with a dedicated test script        | PENDING  |        |
+
+---
+
+## Decision Log
+
+| Task  | Decision made | Rationale |
+|-------|---------------|-----------|
+| S3-T1 | None — no unplanned decisions made. | |
+
+---
+
+## Deviations
+
+| Task  | Deviation observed | Action taken |
+|-------|--------------------|--------------|
+| S3-T1 | Task spec Dockerfile does not include `curl`; the `docker-compose.yml` healthcheck uses `curl -f http://localhost:8000/health`. | `apt-get install -y --no-install-recommends curl` retained (carry-forward from S1-T4 deviation). Without it the healthcheck fails permanently, blocking nginx via `condition: service_healthy` — a direct INV-03 violation. Flagged, not resolved silently. |
+
+---
+
+## Claude.md Changes
+
+| Change | Reason | New Claude.md version | Tasks re-verified |
+|--------|--------|-----------------------|-------------------|
+| None   |        |                       |                   |
+
+---
+
+## Session Completion
+
+**Session integration check:** [ ] PASSED  [ ] FAILED (see notes)
+**All tasks verified:** [ ] Yes  [x] No — S3-T2 and S3-T3 still PENDING
+**PR raised:** [ ] Yes — [PR link or number]
+**Status updated to:** IN PROGRESS
+**Engineer sign-off:** [ENGINEER: NAME AND DATE — do not leave blank before committing]

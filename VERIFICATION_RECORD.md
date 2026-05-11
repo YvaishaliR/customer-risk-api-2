@@ -326,3 +326,85 @@ S2-T4: TIMEOUT set to 90 s (vs 60 s in s1_smoke.sh) because db-init must wait fo
 
 **Status: VERIFIED — Session 2 COMPLETE**
 **Engineer sign-off:** y vaishali rao — 2026-05-11
+
+---
+---
+
+# VERIFICATION_RECORD — Session 3: FastAPI Core: Authentication and Health
+
+**Session:** Session 3 — FastAPI core: authentication and health
+**Date:** 2026-05-11
+**Engineer:** y vaishali rao
+
+---
+
+## Task S3-T1 — Set up FastAPI project structure and dependencies
+
+<!-- S3-T2 and S3-T3 will be added when completed. -->
+
+---
+
+### Test Cases Applied
+
+Source: EXECUTION_PLAN.md — S3-T1 test cases.
+
+| Case       | Scenario                                                     | Expected                          | Result                                                        |
+|------------|--------------------------------------------------------------|-----------------------------------|---------------------------------------------------------------|
+| S3-T1 TC-1 | `GET /health`                                                | HTTP 200, body `{"status":"ok"}`  | PASS — status 200, body `{"status":"ok"}` exact match        |
+| S3-T1 TC-2 | Image builds without error (`docker compose build fastapi`)  | Exit 0                            | PASS — all layers cached, exit 0                             |
+
+### Test Cases Added During Session
+
+| Case  | Scenario        | Expected | Result | Source |
+|-------|-----------------|----------|--------|--------|
+| ADD-1 | None discovered | | | |
+
+---
+
+### Prediction Statement
+
+S3-T1 TC-1 | `GET /health` will return HTTP 200 with body `{"status":"ok"}`. The endpoint is registered on the `FastAPI()` instance and FastAPI serializes the returned dict to JSON automatically.
+S3-T1 TC-2 | `docker compose build fastapi` will exit 0. All five pinned packages (`fastapi==0.111.0`, `uvicorn[standard]==0.29.0`, `psycopg2-binary==2.9.9`, `pydantic==2.7.0`, `python-dotenv==1.0.1`) install cleanly from PyPI into `python:3.10-slim`.
+
+---
+
+### CC Challenge Output
+
+S3-T1 — What did you not test in this task?
+
+Items not tested:
+- Whether `uvicorn` correctly handles SIGTERM and shuts down cleanly (process lifecycle — not relevant for the skeleton stage).
+- Whether `python-dotenv` correctly loads `.env` values when running outside Docker (not imported or used by `main.py` yet — added to `requirements.txt` for use in S4-T1).
+- Whether the image starts cleanly when no environment variables are provided (main.py reads no env vars at this stage — no failure path exists yet to test).
+- Whether the `WORKDIR /app` correctly isolates paths when `COPY . .` copies both `requirements.txt` and `main.py` — no conflicts in the current file set.
+
+Decision: process lifecycle is irrelevant for a skeleton with no signal handling. python-dotenv readiness is implicit in the build success. Missing env var behaviour is the scope of S3-T2. WORKDIR isolation is confirmed by the build succeeding. No additional test cases added.
+
+---
+
+### Code Review
+
+S3-T1 — No invariant touched. No code review required.
+
+---
+
+### Scope Decisions
+
+S3-T1: `curl` retained in the Dockerfile despite not appearing in the task spec. Required by the `docker-compose.yml` healthcheck (`curl -f http://localhost:8000/health`). Without it the healthcheck fails permanently, blocking nginx via `condition: service_healthy` — an INV-03 violation. Carry-forward of the S1-T4 deviation; flagged as a deviation in SESSION_LOG.md.
+
+S3-T1: `python-dotenv==1.0.1` included in `requirements.txt` per task spec. Not used in `main.py` at this stage — its use begins in S4-T1 when environment variable loading is explicit.
+
+S3-T1: `# Auth dependency added in S3-T2` and `# Database lifespan added in S4-T1` placed at module level as forward-reference markers. The S3-T2 and S4-T1 task specs explicitly instruct replacing these comments with their respective implementations.
+
+---
+
+### Verification Verdict
+
+[x] All planned cases passed (S3-T1: TC-1–2)
+[x] Test Cases Added During Session section complete — None discovered
+[x] CC challenge reviewed for S3-T1
+[x] Code review complete — S3-T1 touches no invariant; no code review required
+[x] Scope decisions documented
+
+**Status: VERIFIED (S3-T1 — session IN PROGRESS)**
+**Engineer sign-off:** y vaishali rao — 2026-05-11
