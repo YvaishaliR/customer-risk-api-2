@@ -753,8 +753,9 @@ S4-T2: `response_model=RiskResponse` on the route decorator causes Pydantic to v
 ---
 
 ## Task S5-T1 — Write the Nginx configuration
+## Task S5-T2 — Write the Nginx container entrypoint for `htpasswd` generation
 
-<!-- S5-T2, S5-T3, S5-T4 will be added when completed. -->
+<!-- S5-T3, S5-T4 will be added when completed. -->
 
 ---
 
@@ -837,5 +838,82 @@ S5-T1: The `nginx -t` test harness used `--add-host=fastapi:127.0.0.1` to satisf
 
 ---
 
-**Status: VERIFIED (S5-T1 — session IN PROGRESS)**
+---
+
+### S5-T2 Test Cases Applied
+
+Source: S5-T2 task prompt — all test cases. Tested via `docker run` against the built `customer-risk-api-dg-nginx:latest` image. TC-1/TC-5 used `--add-host=fastapi:127.0.0.1` so `nginx -t` inside the container resolves the upstream hostname.
+
+| Case        | Scenario                                                          | Expected                                               | Result                                                                                                        |
+|-------------|-------------------------------------------------------------------|--------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| S5-T2 TC-1  | All 3 env vars set; container run with `--add-host=fastapi:...`  | htpasswd created, nginx.conf generated, nginx starts   | PASS — container running; `/etc/nginx/.htpasswd` present (`testuser:$apr1$...`); `proxy_set_header X-API-Key` line contains literal key value; `nginx -t` passed (seen in container logs) |
+| S5-T2 TC-2  | `BASIC_AUTH_USER=""` (empty)                                      | Container exits 1; `ERROR: BASIC_AUTH_USER is required` on stderr | PASS — exit 1; output: `ERROR: BASIC_AUTH_USER is required`                                          |
+| S5-T2 TC-3  | `BASIC_AUTH_PASSWORD=""` (empty)                                  | Container exits 1; `ERROR: BASIC_AUTH_PASSWORD is required` on stderr | PASS — exit 1; output: `ERROR: BASIC_AUTH_PASSWORD is required`                                   |
+| S5-T2 TC-4  | `API_KEY=""` (empty)                                              | Container exits 1; `ERROR: API_KEY is required` on stderr | PASS — exit 1; output: `ERROR: API_KEY is required`                                                        |
+| S5-T2 TC-5  | Generated `/etc/nginx/nginx.conf` contains no `${VAR}` literals  | `grep -c '\${'` returns 0; key value present as literal | PASS — 0 `${...}` patterns; `proxy_set_header X-API-Key test-key-s5t2-do-not-use;` confirmed               |
+
+### S5-T2 Test Cases Added During Session
+
+| Case  | Scenario        | Expected | Result | Source |
+|-------|-----------------|----------|--------|--------|
+| ADD-1 | None discovered | | | |
+
+---
+
+### S5-T2 Prediction Statement
+
+S5-T2 TC-1 | `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD`, and `API_KEY` are all non-empty. Each `[ -z ... ]` check passes without triggering the exit branch. `htpasswd -cb` writes the bcrypt-hashed entry. `envsubst '${API_KEY}'` substitutes the key into nginx.conf. `nginx -t` passes (with `fastapi` resolving via `--add-host`). `exec nginx -g "daemon off;"` replaces the shell with nginx as PID 1. Container stays running.
+S5-T2 TC-2 | `BASIC_AUTH_USER=""` → `[ -z "${BASIC_AUTH_USER:-}" ]` is true → `echo "ERROR: BASIC_AUTH_USER is required" >&2 && exit 1`. No subsequent steps execute.
+S5-T2 TC-3 | `BASIC_AUTH_PASSWORD=""` → first check passes (user is set) → second check triggers → `echo "ERROR: BASIC_AUTH_PASSWORD is required" >&2 && exit 1`.
+S5-T2 TC-4 | `API_KEY=""` → first two checks pass → third check triggers → `echo "ERROR: API_KEY is required" >&2 && exit 1`.
+S5-T2 TC-5 | `envsubst '${API_KEY}'` substitutes exactly one occurrence in the template (`proxy_set_header X-API-Key ${API_KEY}`). All nginx variables (`$host`, `$remote_addr`, `$uri`, etc.) use unbraced form and are not touched. The output file contains zero `${...}` patterns.
+
+---
+
+### S5-T2 CC Challenge Output
+
+S5-T2 — What did you not test in this task?
+
+Items not tested:
+- Whether the container exits 1 (not 0 or another code) specifically when a variable is unset (not just empty) — only the empty-string case was tested via `-e VAR=""`. The `:-` expansion handles both cases identically in sh.
+- Whether `nginx -t` failure (step 6) causes exit 1 with the correct error message — no test with a deliberately broken template was run.
+- Whether `exec nginx -g "daemon off;"` correctly makes nginx PID 1 and receives SIGTERM on `docker stop` — process ancestry was not inspected.
+- Whether `htpasswd -cb` correctly overwrites an existing `.htpasswd` file on a second container start (volume mount scenario) — only a fresh container was tested.
+- Whether the entrypoint works when called without `set -e` side effects (e.g., if `htpasswd` exits non-zero for any reason) — `set -e` ensures abort, but no forced `htpasswd` failure was induced.
+
+Decision: unset vs empty is handled identically by `${VAR:-}` — same code path, no separate test needed. The `nginx -t` failure path would require injecting a broken template, which is outside the task scope. PID 1 / SIGTERM behaviour is a Docker/process guarantee. Overwrite-on-restart is not relevant for a stateless container (htpasswd is regenerated each start). No additional test cases added.
+
+---
+
+### S5-T2 Code Review
+
+S5-T2 — INV-02 — Review `nginx/entrypoint.sh` and `nginx/Dockerfile`: confirm key is not logged or exposed, and that the htpasswd generation and envsubst substitution are correct.
+
+S5-T2 review finding:
+
+**INV-02 — Key not logged by entrypoint** — The entrypoint prints only `Adding password for user <username>` (from `htpasswd -cb` stdout) and the `nginx -t` output lines. Neither message contains `$API_KEY`. The error messages reference variable names only (`"API_KEY is required"`), not their values. `envsubst` is silent. `exec nginx -g "daemon off;"` produces no output. Confirmed — `API_KEY` value is not written to stdout or stderr by the entrypoint. Satisfies INV-02.
+
+**INV-02 — Key visible only inside container** — After `envsubst`, the key value exists in `/etc/nginx/nginx.conf` inside the container's writable layer. This file is not a "statically served file" (it is a server config, not served over HTTP). It is not present in the image layers (the template has `${API_KEY}`, not the value). The value arrives at runtime via the environment variable. Consistent with INV-02's scope.
+
+**`envsubst '${API_KEY}'`** — The single-quoted argument `'${API_KEY}'` tells envsubst to substitute only `${API_KEY}`. All nginx variables (`$host`, `$remote_addr`, `$uri`, `$status`, etc.) are left intact because they are unbraced and not in the substitution list. If the argument were omitted, all `$VAR` references in the template would be substituted with their environment values (or empty string), breaking the nginx config. Confirmed correct.
+
+**`set -e`** — Any failure in `htpasswd`, `envsubst`, or `nginx -t` aborts the entrypoint before nginx starts. This ensures nginx never runs with an incomplete config or missing htpasswd file. The `nginx -t || { ...; exit 1; }` construct is used instead of relying solely on `set -e` for the nginx -t step, making the error message explicit. Confirmed.
+
+**`exec nginx -g "daemon off;"`** — `exec` replaces the shell (PID 1) with nginx. Docker's SIGTERM is delivered directly to nginx, enabling graceful shutdown. Without `exec`, SIGTERM goes to the shell, which may not propagate it to nginx. Confirmed.
+
+**Dockerfile `apache2-utils`** — Provides `htpasswd` in Alpine. The Alpine package `apache2-utils` is the correct package; `httpd-tools` (the RHEL/CentOS equivalent) is not available in Alpine. `--no-cache` prevents the apk index from being stored in the image layer. Confirmed.
+
+---
+
+### S5-T2 Scope Decisions
+
+S5-T2: `#!/bin/sh` used instead of `#!/bin/bash` — Alpine Linux (nginx:1.25-alpine base) does not include bash; only busybox sh is available. All constructs used (`[ -z ]`, `${VAR:-}`, `||`, `set -e`, `exec`) are POSIX sh compatible.
+
+S5-T2: `nginx.conf` (stub) copied into the image as a fallback (`COPY nginx.conf /etc/nginx/nginx.conf`). The entrypoint overwrites it at startup with the envsubst-generated config. The fallback is present so the image has a parseable config file even if the entrypoint is bypassed (e.g., during `docker compose build` layer caching).
+
+S5-T2: `RUN chmod +x /entrypoint.sh` in the Dockerfile is redundant with `chmod +x` applied to the file on the host, but is included per the task spec for explicitness and to ensure the executable bit survives across different host filesystems and git configurations.
+
+---
+
+**Status: VERIFIED (S5-T1, S5-T2 — session IN PROGRESS)**
 **Engineer sign-off:** y vaishali rao — 2026-05-11

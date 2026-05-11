@@ -249,7 +249,7 @@
 | Task ID | Name                                                              | Status   | Commit |
 |---------|-------------------------------------------------------------------|----------|--------|
 | S5-T1   | Write the Nginx configuration                                     | VERIFIED |        |
-| S5-T2   | Write the Nginx container entrypoint for `htpasswd` generation    | PENDING  |        |
+| S5-T2   | Write the Nginx container entrypoint for `htpasswd` generation    | VERIFIED |        |
 | S5-T3   | Integration check: Nginx Basic Auth and key injection             | PENDING  |        |
 | S5-T4   | Verify that FastAPI is unreachable on port 8000 from the host     | PENDING  |        |
 
@@ -261,6 +261,8 @@
 |-------|---------------|-----------|
 | S5-T1 | `$remote_user` omitted from the `api_safe` log format. | `$remote_user` contains the Basic Auth username — including it in access logs would log a credential-adjacent value. Task spec lists the seven required fields and does not include `$remote_user`. Omitting it is the minimum-spec and the safer choice. |
 | S5-T1 | `include /etc/nginx/mime.types` added to the `http` block. | Without it, all static files are served as `application/octet-stream`, breaking the browser UI. Task spec is silent on this; it is a functional requirement for static file serving and was added as the minimum needed for correctness. |
+| S5-T2 | Used `#!/bin/sh` (not `#!/bin/bash`) for `entrypoint.sh`. | nginx:1.25-alpine uses Alpine Linux which has only busybox `sh`. Bash is not present. The script uses only POSIX sh syntax, so `#!/bin/sh` is correct and portable. |
+| S5-T2 | Used `${VAR:-}` expansion in the empty-check conditionals. | `:-` returns empty string when the variable is unset or empty, preventing an "unbound variable" error if the var is completely unset. `[ -z ... ]` then catches both cases, satisfying the "empty or unset" requirement from the task spec. |
 
 ---
 
@@ -269,6 +271,7 @@
 | Task  | Deviation observed | Action taken |
 |-------|--------------------|--------------|
 | S5-T1 | `nginx -t` inside a standalone container fails with `host not found in upstream "fastapi"` because DNS resolution of `fastapi` only works inside the compose network. | Added `--add-host=fastapi:127.0.0.1` to the test container. Satisfies nginx's upstream host lookup at config-test time. No change to the template; this is a test harness constraint, not a config defect. |
+| S5-T2 | `docker exec` path arguments are converted from `/etc/nginx/...` to `C:/Program Files/Git/etc/nginx/...` by Git Bash on Windows before docker sees them. | Wrapped all `docker exec` verification commands in `sh -c '...'` so paths stay inside the container shell and are never processed by Git Bash's POSIX-to-Windows path converter. No change to the entrypoint or Dockerfile; this is a test harness constraint. |
 
 ---
 
@@ -283,7 +286,7 @@
 ## Session Completion
 
 **Session integration check:** [ ] PASSED  [ ] FAILED (see notes)
-**All tasks verified:** [ ] Yes  [x] No — S5-T2, S5-T3, S5-T4 still PENDING
+**All tasks verified:** [ ] Yes  [x] No — S5-T3, S5-T4 still PENDING
 **PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** IN PROGRESS
 **Engineer sign-off:** [ENGINEER: NAME AND DATE — do not leave blank before committing]
