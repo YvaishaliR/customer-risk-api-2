@@ -59,3 +59,59 @@
 **PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** COMPLETE
 **Engineer sign-off:** y vaishali rao — 2026-05-11
+
+---
+---
+
+## Session: Session 2 — Database Schema and Seed Data
+
+**Date started:** 2026-05-11
+**Engineer:** y vaishali rao
+**Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
+**Claude.md version:** v1.0
+**Status:** IN PROGRESS
+
+---
+
+## Tasks
+
+| Task ID | Name                                              | Status   | Commit |
+|---------|---------------------------------------------------|----------|--------|
+| S2-T1   | Write the schema DDL                              | VERIFIED |        |
+| S2-T2   | Write seed data                                   | PENDING  |        |
+| S2-T3   | Write the `db-init` Python script                 | PENDING  |        |
+| S2-T4   | Integration check: db-init in full compose stack  | PENDING  |        |
+
+---
+
+## Decision Log
+
+| Task  | Decision made | Rationale |
+|-------|---------------|-----------|
+| S2-T1 | None — no unplanned decisions made. | |
+
+---
+
+## Deviations
+
+| Task | Deviation observed | Action taken |
+|------|--------------------|--------------|
+|      | None               |              |
+
+---
+
+## Claude.md Changes
+
+| Change | Reason | New Claude.md version | Tasks re-verified |
+|--------|--------|-----------------------|-------------------|
+| None   |        |                       |                   |
+
+---
+
+## Session Completion
+
+**Session integration check:** [ ] PASSED  [ ] FAILED (see notes)
+**All tasks verified:** [ ] Yes  [x] No — S2-T2 through S2-T4 still PENDING
+**PR raised:** [ ] Yes — [PR link or number]
+**Status updated to:** IN PROGRESS
+**Engineer sign-off:** [ENGINEER: NAME AND DATE — do not leave blank before committing]
