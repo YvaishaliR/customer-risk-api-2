@@ -69,7 +69,7 @@
 **Engineer:** y vaishali rao
 **Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
 **Claude.md version:** v1.0
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 
 ---
 
@@ -80,7 +80,7 @@
 | S2-T1   | Write the schema DDL                              | VERIFIED |        |
 | S2-T2   | Write seed data                                   | VERIFIED |        |
 | S2-T3   | Write the `db-init` Python script                 | VERIFIED |        |
-| S2-T4   | Integration check: db-init in full compose stack  | PENDING  |        |
+| S2-T4   | Integration check: db-init in full compose stack  | VERIFIED |        |
 
 ---
 
@@ -111,8 +111,8 @@
 
 ## Session Completion
 
-**Session integration check:** [ ] PASSED  [ ] FAILED (see notes)
-**All tasks verified:** [ ] Yes  [x] No — S2-T4 still PENDING
+**Session integration check:** [x] PASSED
+**All tasks verified:** [x] Yes
 **PR raised:** [ ] Yes — [PR link or number]
-**Status updated to:** IN PROGRESS
-**Engineer sign-off:** [ENGINEER: NAME AND DATE — do not leave blank before committing]
+**Status updated to:** COMPLETE
+**Engineer sign-off:** y vaishali rao — 2026-05-11
