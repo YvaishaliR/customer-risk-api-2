@@ -740,3 +740,102 @@ S4-T2: `_CUSTOMER_ID_RE = re.compile(r"^[A-Za-z0-9]{1,20}$")` compiled at module
 S4-T2: Two separate `cursor()` / `try/finally / cur.close()` blocks used (one for the customer row, one for the factors). A single cursor was considered (reuse), but the two-block pattern makes cursor lifecycle unambiguous and avoids any possibility of result-set leakage between queries.
 
 S4-T2: `response_model=RiskResponse` on the route decorator causes Pydantic to validate the returned object before serialisation. Any tier value that somehow bypassed the DB CHECK constraint would be caught here and result in a 500 (unhandled `ValidationError`). This is a defence-in-depth layer, not a primary invariant enforcement point.
+
+---
+---
+
+# VERIFICATION_RECORD — Session 5: Nginx: Proxy, Key Injection, and Basic Auth
+
+**Session:** Session 5 — Nginx: proxy, key injection, and Basic Auth
+**Date:** 2026-05-11
+**Engineer:** y vaishali rao
+
+---
+
+## Task S5-T1 — Write the Nginx configuration
+
+<!-- S5-T2, S5-T3, S5-T4 will be added when completed. -->
+
+---
+
+### Test Cases Applied
+
+Source: S5-T1 task prompt — all test cases.
+
+| Case        | Scenario                                                              | Expected                                                            | Result                                                                                                           |
+|-------------|-----------------------------------------------------------------------|---------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| S5-T1 TC-1a | Template substitution with known `API_KEY` value                      | No `${VAR}` literals remain; key value present in output            | PASS — 0 unsubstituted patterns; key value on `proxy_set_header X-API-Key` line                                  |
+| S5-T1 TC-1b | `nginx -t` on substituted config (with `--add-host=fastapi:127.0.0.1`) | Config syntax valid; `nginx -t` exits 0                             | PASS — `nginx: the configuration file /tmp/t.conf syntax is ok` / `test is successful`                          |
+| S5-T1 TC-2  | `proxy_set_header X-API-Key` present in `/api/` location block       | Directive present with `${API_KEY}` reference                       | PASS — `proxy_set_header X-API-Key   ${API_KEY};` confirmed inside `/api/` location                             |
+| S5-T1 TC-3  | `proxy_hide_header X-API-Key` present                                 | Directive present — key stripped from upstream response             | PASS — `proxy_hide_header X-API-Key;` confirmed                                                                  |
+| S5-T1 TC-4  | `$http_x_api_key` absent from log format                              | String not present anywhere in template                             | PASS — `grep http_x_api_key` returned no matches                                                                 |
+| S5-T1 TC-5  | `auth_basic` applies at server level, not inside location blocks      | `auth_basic` and `auth_basic_user_file` found at server scope; awk finds no `auth_basic` inside any `location {}` | PASS — 2 directives at server level; awk scan of location blocks returned empty |
+
+### Test Cases Added During Session
+
+| Case  | Scenario        | Expected | Result | Source |
+|-------|-----------------|----------|--------|--------|
+| ADD-1 | None discovered | | | |
+
+---
+
+### Prediction Statement
+
+S5-T1 TC-1a | `envsubst '${API_KEY}'` will substitute exactly one occurrence — the `proxy_set_header X-API-Key ${API_KEY}` line. All nginx variables (`$uri`, `$host`, `$remote_addr`, etc.) are unbraced and will not be touched. Zero `${VAR}` patterns will remain.
+S5-T1 TC-1b | After substitution the config is structurally correct nginx syntax: `events {}`, `http { log_format ...; server { listen 80; auth_basic ...; location / { ... } location /api/ { ... } } }`. `nginx -t` will pass provided the upstream hostname is resolvable (satisfied by `--add-host`) and the htpasswd file exists (satisfied by `touch`).
+S5-T1 TC-2 | `proxy_set_header X-API-Key ${API_KEY}` is in the `/api/` location block. The awk extraction of that block will contain the directive. `grep` will match.
+S5-T1 TC-3 | `proxy_hide_header X-API-Key` appears immediately after `proxy_set_header X-API-Key` in the `/api/` location block. `grep` will match.
+S5-T1 TC-4 | The log format contains only the seven specified fields. `$http_x_api_key` was deliberately excluded. `grep` will return no match.
+S5-T1 TC-5 | `auth_basic "Restricted"` and `auth_basic_user_file /etc/nginx/.htpasswd` appear directly inside `server {}` before any `location` block. The awk script tracking `in_loc` state will find no `auth_basic` inside a location block.
+
+---
+
+### CC Challenge Output
+
+S5-T1 — What did you not test in this task?
+
+Items not tested:
+- Whether the substituted nginx.conf correctly serves a real HTTP response at runtime inside the compose network — static file serving and proxy behaviour were not exercised end-to-end (deferred to S5-T3 integration check).
+- Whether Basic Auth actually gates requests at runtime — `nginx -t` only validates syntax, not runtime authentication behaviour (deferred to S5-T3).
+- Whether `proxy_hide_header X-API-Key` actually suppresses the key from responses at runtime — the directive's presence was confirmed, but its effect was not tested against a live response (deferred to S5-T3).
+- Whether the `try_files $uri $uri/ /index.html` fallback correctly serves `index.html` for unknown paths (requires a running nginx with the HTML directory mounted).
+- Whether `include /etc/nginx/mime.types` correctly resolves inside the nginx:1.25-alpine image when the config is deployed (confirmed only by the `nginx -t` passing, which loads the include path).
+
+Decision: all runtime behaviour items belong to S5-T3 (integration check). The `nginx -t` syntax validation confirmed the config is structurally correct and all directives are recognised by nginx. No additional test cases added.
+
+---
+
+### Code Review
+
+S5-T1 — INV-02 — Review `nginx/nginx.conf.template`: confirm key is not exposed in responses, headers, or logs.
+
+S5-T1 review finding:
+
+**INV-02 — Key not in response headers** — `proxy_set_header X-API-Key ${API_KEY}` is a request header directive: it modifies the headers sent FROM nginx TO the FastAPI upstream. It does not add X-API-Key to the response headers sent to the client. `proxy_hide_header X-API-Key` additionally strips any X-API-Key that FastAPI might return in its response, before nginx forwards the response to the client. No `add_header X-API-Key` or equivalent directive is present. Confirmed.
+
+**INV-02 — Key not in access logs** — The `log_format api_safe` definition contains: `$remote_addr`, `$time_local`, `$request`, `$status`, `$body_bytes_sent`, `$http_referer`, `$http_user_agent`. The string `$http_x_api_key` is absent. The `$request` field logs the request line (method, URI, protocol) — it does not log request headers. `$http_referer` and `$http_user_agent` are specific headers; no wildcard header logging is present. Confirmed.
+
+**INV-02 — Key not in static files** — The `location /` block serves static files from `/usr/share/nginx/html`. No `add_header` directive referencing `${API_KEY}` or any dynamic value is present in that location. No `sub_filter` or SSI directive is present. Confirmed.
+
+**INV-02 — Template file itself** — The template contains `${API_KEY}` (the variable reference), not the key's value. The key value only enters the system at container startup when `envsubst` writes the substituted config inside the container. The template file committed to version control contains no key value. Confirmed.
+
+**auth_basic scope** — `auth_basic "Restricted"` and `auth_basic_user_file /etc/nginx/.htpasswd` are at the `server {}` level. Nginx inherits these into all `location` blocks unless explicitly overridden with `auth_basic off`. Neither location block contains `auth_basic off`. Both locations (`/` and `/api/`) require Basic Auth. Confirmed.
+
+---
+
+### Scope Decisions
+
+S5-T1: `nginx/nginx.conf` (stub) left unchanged — the task spec explicitly states "this can remain the minimal 'return 200' version from S1-T3." No modification made.
+
+S5-T1: `include /etc/nginx/mime.types` added to the `http` block. Not in the task spec, but functionally required: without MIME type mapping, nginx serves all static files as `application/octet-stream`, causing browsers to download rather than render `index.html`. Flagged in SESSION_LOG.md Decision Log.
+
+S5-T1: `$remote_user` omitted from `log_format api_safe`. The task spec lists seven fields; `$remote_user` is not among them. Its omission is intentional — `$remote_user` would log the Basic Auth username (a credential-adjacent value) in the access log. Flagged in SESSION_LOG.md Decision Log.
+
+S5-T1: Gap flagged (not in task scope): the `Authorization: Basic ...` header sent by the client is forwarded to FastAPI by nginx's default passthrough behaviour. FastAPI ignores it (only `X-API-Key` is checked), but `proxy_set_header Authorization ""` was not added as the task spec does not mention it. This is a potential credential-forwarding exposure to be addressed in a future task or S7 invariant review.
+
+S5-T1: The `nginx -t` test harness used `--add-host=fastapi:127.0.0.1` to satisfy nginx's upstream DNS resolution at config-test time. This is a test-only workaround; the actual container resolves `fastapi` via the Docker Compose internal network. Recorded as a deviation in SESSION_LOG.md.
+
+---
+
+**Status: VERIFIED (S5-T1 — session IN PROGRESS)**
+**Engineer sign-off:** y vaishali rao — 2026-05-11

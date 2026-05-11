@@ -230,3 +230,60 @@
 **PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** COMPLETE
 **Engineer sign-off:** y vaishali rao — 2026-05-11
+
+---
+---
+
+## Session: Session 5 — Nginx: Proxy, Key Injection, and Basic Auth
+
+**Date started:** 2026-05-11
+**Engineer:** y vaishali rao
+**Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
+**Claude.md version:** v1.0
+**Status:** IN PROGRESS
+
+---
+
+## Tasks
+
+| Task ID | Name                                                              | Status   | Commit |
+|---------|-------------------------------------------------------------------|----------|--------|
+| S5-T1   | Write the Nginx configuration                                     | VERIFIED |        |
+| S5-T2   | Write the Nginx container entrypoint for `htpasswd` generation    | PENDING  |        |
+| S5-T3   | Integration check: Nginx Basic Auth and key injection             | PENDING  |        |
+| S5-T4   | Verify that FastAPI is unreachable on port 8000 from the host     | PENDING  |        |
+
+---
+
+## Decision Log
+
+| Task  | Decision made | Rationale |
+|-------|---------------|-----------|
+| S5-T1 | `$remote_user` omitted from the `api_safe` log format. | `$remote_user` contains the Basic Auth username — including it in access logs would log a credential-adjacent value. Task spec lists the seven required fields and does not include `$remote_user`. Omitting it is the minimum-spec and the safer choice. |
+| S5-T1 | `include /etc/nginx/mime.types` added to the `http` block. | Without it, all static files are served as `application/octet-stream`, breaking the browser UI. Task spec is silent on this; it is a functional requirement for static file serving and was added as the minimum needed for correctness. |
+
+---
+
+## Deviations
+
+| Task  | Deviation observed | Action taken |
+|-------|--------------------|--------------|
+| S5-T1 | `nginx -t` inside a standalone container fails with `host not found in upstream "fastapi"` because DNS resolution of `fastapi` only works inside the compose network. | Added `--add-host=fastapi:127.0.0.1` to the test container. Satisfies nginx's upstream host lookup at config-test time. No change to the template; this is a test harness constraint, not a config defect. |
+
+---
+
+## Claude.md Changes
+
+| Change | Reason | New Claude.md version | Tasks re-verified |
+|--------|--------|-----------------------|-------------------|
+| None   |        |                       |                   |
+
+---
+
+## Session Completion
+
+**Session integration check:** [ ] PASSED  [ ] FAILED (see notes)
+**All tasks verified:** [ ] Yes  [x] No — S5-T2, S5-T3, S5-T4 still PENDING
+**PR raised:** [ ] Yes — [PR link or number]
+**Status updated to:** IN PROGRESS
+**Engineer sign-off:** [ENGINEER: NAME AND DATE — do not leave blank before committing]
