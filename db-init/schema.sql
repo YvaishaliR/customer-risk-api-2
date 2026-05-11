@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS risk_factors (
     customer_id        VARCHAR(20)  NOT NULL REFERENCES customers(customer_id) ON DELETE CASCADE,
     factor_code        VARCHAR(50)  NOT NULL,
     factor_description TEXT         NOT NULL,
-    created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    UNIQUE (customer_id, factor_code)
 );
 
 CREATE INDEX IF NOT EXISTS idx_risk_factors_customer_id ON risk_factors (customer_id);

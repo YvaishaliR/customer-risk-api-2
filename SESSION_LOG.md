@@ -78,7 +78,7 @@
 | Task ID | Name                                              | Status   | Commit |
 |---------|---------------------------------------------------|----------|--------|
 | S2-T1   | Write the schema DDL                              | VERIFIED |        |
-| S2-T2   | Write seed data                                   | PENDING  |        |
+| S2-T2   | Write seed data                                   | VERIFIED |        |
 | S2-T3   | Write the `db-init` Python script                 | PENDING  |        |
 | S2-T4   | Integration check: db-init in full compose stack  | PENDING  |        |
 
@@ -89,14 +89,15 @@
 | Task  | Decision made | Rationale |
 |-------|---------------|-----------|
 | S2-T1 | None — no unplanned decisions made. | |
+| S2-T2 | Added `UNIQUE (customer_id, factor_code)` constraint to `risk_factors` in `schema.sql` | Without a unique constraint on `risk_factors`, `ON CONFLICT DO NOTHING` has no conflict target (SERIAL PK never conflicts) and every seed re-run would insert duplicate factor rows. The unique constraint makes `ON CONFLICT DO NOTHING` functional and satisfies the S2-T2 idempotency test case. This is a backward-compatible change — all S2-T1 test cases remain valid. |
 
 ---
 
 ## Deviations
 
-| Task | Deviation observed | Action taken |
-|------|--------------------|--------------|
-|      | None               |              |
+| Task  | Deviation observed | Action taken |
+|-------|--------------------|--------------|
+| S2-T2 | `schema.sql` (S2-T1 scope) was retroactively patched to add `UNIQUE (customer_id, factor_code)` to `risk_factors`. | Required for `ON CONFLICT DO NOTHING` in `seed.sql` to be genuinely idempotent. Without it, the SERIAL PK never conflicts and duplicate factor rows are inserted on every re-run. All S2-T1 test cases re-confirmed valid after the change. |
 
 ---
 
@@ -111,7 +112,7 @@
 ## Session Completion
 
 **Session integration check:** [ ] PASSED  [ ] FAILED (see notes)
-**All tasks verified:** [ ] Yes  [x] No — S2-T2 through S2-T4 still PENDING
+**All tasks verified:** [ ] Yes  [x] No — S2-T3 and S2-T4 still PENDING
 **PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** IN PROGRESS
 **Engineer sign-off:** [ENGINEER: NAME AND DATE — do not leave blank before committing]

@@ -169,8 +169,9 @@ S1-T4: `fastapi/Dockerfile` stub modified to install `curl` (deviation from S1-T
 ---
 
 ## Task S2-T1 — Write the schema DDL
+## Task S2-T2 — Write seed data
 
-<!-- S2-T2 through S2-T4 will be added as each task is completed. -->
+<!-- S2-T3 and S2-T4 will be added as each task is completed. -->
 
 ---
 
@@ -185,6 +186,9 @@ Source: EXECUTION_PLAN.md — S2-T1 test cases.
 | S2-T1 TC-3 | `INSERT` risk_factor with non-existent `customer_id`            | Rejected with FK violation               | PASS — `violates foreign key constraint "risk_factors_customer_id_fkey"` (INV-08) |
 | S2-T1 TC-4 | `INSERT` customer with `NULL tier`                              | Rejected with NOT NULL violation         | PASS — `null value in column "tier" violates not-null constraint` (INV-06)    |
 | S2-T1 TC-5 | Re-run schema DDL against existing tables                       | No error (IF NOT EXISTS)                 | PASS — `NOTICE: relation already exists, skipping` × 3, no ERROR             |
+| S2-T2 TC-1 | All 3 tiers represented                                         | At least 1 customer with each tier       | PASS — 3 customers each for LOW, MEDIUM, HIGH (9 total)                       |
+| S2-T2 TC-2 | Every customer has ≥ 2 factors                                  | No `customer_id` has < 2 rows in `risk_factors` | PASS — 0 violators; range 2–3 factors per customer                     |
+| S2-T2 TC-3 | Re-running `seed.sql` is safe                                   | No errors, row counts unchanged          | PASS — all 31 statements return `INSERT 0 0`; counts stable at 9 / 22        |
 
 ### Test Cases Added During Session
 
@@ -201,6 +205,9 @@ S2-T1 TC-2 | Inserting `tier='INVALID'` will trigger the `CHECK (tier IN ('LOW',
 S2-T1 TC-3 | Inserting a risk_factor row referencing a non-existent `customer_id` will be rejected by the FOREIGN KEY constraint on `risk_factors.customer_id`.
 S2-T1 TC-4 | Inserting a customer row with `tier=NULL` will be rejected by the `NOT NULL` constraint on the `tier` column.
 S2-T1 TC-5 | Re-running the schema DDL against an already-initialised database will produce `NOTICE: relation already exists, skipping` for each object and exit 0 — no ERROR.
+S2-T2 TC-1 | All three tier values (LOW, MEDIUM, HIGH) will be present in the `customers` table with at least 3 customers each.
+S2-T2 TC-2 | Every `customer_id` in `customers` will have at least 2 corresponding rows in `risk_factors` — the subquery counting violators will return 0.
+S2-T2 TC-3 | A second run of `seed.sql` will produce `INSERT 0 0` for every statement (conflict on PK or UNIQUE constraint) and leave row counts unchanged.
 
 ---
 
@@ -216,18 +223,34 @@ Items not tested:
 
 Decision: ON DELETE CASCADE behaviour is enforced by the FK definition and Postgres internals — it is not an application concern. Index usage, default values, and SERIAL behaviour are Postgres internals not requiring explicit verification at this stage. No additional test cases added.
 
+S2-T2 — What did you not test in this task?
+
+Items not tested:
+- Whether factor codes and descriptions are plausible or correctly matched to their tier (content quality — not a functional invariant).
+- Whether `customer_id` values (`CUST001`–`CUST009`) conform to the regex `^[A-Za-z0-9]{1,20}$` (format validated by S4-T2 endpoint logic, not at the seed layer).
+- Whether the `UNIQUE (customer_id, factor_code)` constraint added to `schema.sql` breaks any existing S2-T1 test cases (re-confirmed: all S2-T1 cases still pass against the patched schema).
+
+Decision: content quality is out of scope for structural verification. customer_id format is enforced by the API layer. The schema patch re-verification was performed informally — no additional test cases added, but flagged in deviations.
+
 ---
 
 ### Code Review
 
 S2-T1 — INV-06, INV-08, INV-09 — Review `db-init/schema.sql`: confirm constraint definitions.
+S2-T2 — INV-06, INV-07, INV-08, INV-09 — Review `db-init/seed.sql`: confirm tier values, factor presence, FK integrity, no duplicate customer_id.
 
-Review finding:
-- `tier VARCHAR(10) NOT NULL CHECK (tier IN ('LOW', 'MEDIUM', 'HIGH'))` — both NOT NULL and the value-set CHECK are present on a single column. Constraint name auto-assigned as `customers_tier_check`. Confirmed — satisfies INV-06.
-- `customer_id VARCHAR(20) NOT NULL REFERENCES customers(customer_id) ON DELETE CASCADE` — FOREIGN KEY present with ON DELETE CASCADE. Constraint name auto-assigned as `risk_factors_customer_id_fkey`. Confirmed — satisfies INV-08. ON DELETE CASCADE is the intended behaviour: removing a customer removes all associated risk factors, preventing orphan rows.
-- `customer_id VARCHAR(20) PRIMARY KEY` on customers — PRIMARY KEY (not UNIQUE). Postgres enforces both uniqueness and NOT NULL implicitly. Confirmed — satisfies INV-09.
+S2-T1 review finding:
+- `tier VARCHAR(10) NOT NULL CHECK (tier IN ('LOW', 'MEDIUM', 'HIGH'))` — both NOT NULL and the value-set CHECK are present. Constraint name auto-assigned as `customers_tier_check`. Confirmed — satisfies INV-06.
+- `customer_id VARCHAR(20) NOT NULL REFERENCES customers(customer_id) ON DELETE CASCADE` — FK present with ON DELETE CASCADE. Constraint name auto-assigned as `risk_factors_customer_id_fkey`. Confirmed — satisfies INV-08.
+- `customer_id VARCHAR(20) PRIMARY KEY` on customers — PRIMARY KEY (not just UNIQUE). Confirmed — satisfies INV-09.
 - `CREATE TABLE IF NOT EXISTS` used for both tables — re-runs are safe. Confirmed.
-- `CREATE INDEX IF NOT EXISTS idx_risk_factors_customer_id ON risk_factors (customer_id)` — index present for query performance. Confirmed.
+- `CREATE INDEX IF NOT EXISTS idx_risk_factors_customer_id ON risk_factors (customer_id)` — index present. Confirmed.
+
+S2-T2 review finding:
+- All 9 customer INSERTs use tier values from {LOW, MEDIUM, HIGH} only — no out-of-set value present. Confirmed — satisfies INV-06.
+- Every customer_id in `customers` inserts has at least 2 corresponding inserts in `risk_factors` — verified by TC-2 (0 violators). Confirmed — satisfies INV-07.
+- Every `risk_factors` insert references a `customer_id` that exists in the `customers` block immediately above it in the file. No orphaned factor insert exists. Confirmed — satisfies INV-08.
+- No two customer INSERTs share a `customer_id` value (CUST001–CUST009 are all distinct). Confirmed — satisfies INV-09.
 
 ---
 
@@ -235,15 +258,17 @@ Review finding:
 
 S2-T1: No explicit constraint names given for the CHECK and FK constraints. Postgres auto-assigns names (`customers_tier_check`, `risk_factors_customer_id_fkey`). The task spec does not require named constraints. Auto-naming is acceptable and poses no risk to invariant enforcement.
 
+S2-T2: `schema.sql` patched to add `UNIQUE (customer_id, factor_code)` on `risk_factors`. This is not in the S2-T1 task spec but is required for `ON CONFLICT DO NOTHING` in `seed.sql` to be functional. Recorded as a deviation; all S2-T1 cases re-confirmed valid.
+
 ---
 
 ### Verification Verdict
 
-[x] All planned cases passed (S2-T1: TC-1–5)
-[x] Test Cases Added During Session section complete — None discovered
-[x] CC challenge reviewed for S2-T1
-[x] Code review complete — INV-06, INV-08, INV-09 reviewed for S2-T1
+[x] All planned cases passed (S2-T1: TC-1–5; S2-T2: TC-1–3)
+[x] Test Cases Added During Session section complete — None discovered (both tasks)
+[x] CC challenge reviewed for S2-T1 and S2-T2
+[x] Code review complete — INV-06/08/09 reviewed for S2-T1; INV-06/07/08/09 reviewed for S2-T2
 [x] Scope decisions documented
 
-**Status: VERIFIED (S2-T1 only — session IN PROGRESS)**
+**Status: VERIFIED (S2-T1 and S2-T2 — session IN PROGRESS)**
 **Engineer sign-off:** y vaishali rao — 2026-05-11
