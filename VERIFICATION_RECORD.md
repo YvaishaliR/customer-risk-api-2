@@ -339,8 +339,9 @@ S2-T4: TIMEOUT set to 90 s (vs 60 s in s1_smoke.sh) because db-init must wait fo
 ---
 
 ## Task S3-T1 — Set up FastAPI project structure and dependencies
+## Task S3-T2 — Implement API key authentication dependency
 
-<!-- S3-T2 and S3-T3 will be added when completed. -->
+<!-- S3-T3 will be added when completed. -->
 
 ---
 
@@ -352,6 +353,11 @@ Source: EXECUTION_PLAN.md — S3-T1 test cases.
 |------------|--------------------------------------------------------------|-----------------------------------|---------------------------------------------------------------|
 | S3-T1 TC-1 | `GET /health`                                                | HTTP 200, body `{"status":"ok"}`  | PASS — status 200, body `{"status":"ok"}` exact match        |
 | S3-T1 TC-2 | Image builds without error (`docker compose build fastapi`)  | Exit 0                            | PASS — all layers cached, exit 0                             |
+| S3-T2 TC-1 | `GET /health` — no `X-API-Key` header                        | HTTP 401                          | PASS — status 401                                            |
+| S3-T2 TC-2 | `GET /health` — wrong `X-API-Key` value                      | HTTP 401                          | PASS — status 401                                            |
+| S3-T2 TC-3 | `GET /health` — correct `X-API-Key` value                    | HTTP 200                          | PASS — status 200                                            |
+| S3-T2 TC-4 | 401 response body                                            | Does not contain the key value    | PASS — body: `{"detail":"Invalid or missing API key"}`, key absent |
+| S3-T2 TC-5 | FastAPI logs after all requests                              | Do not contain the key value      | PASS — logs contain only status codes and startup message; key string `inv01-test-key-do-not-use` absent |
 
 ### Test Cases Added During Session
 
@@ -365,6 +371,11 @@ Source: EXECUTION_PLAN.md — S3-T1 test cases.
 
 S3-T1 TC-1 | `GET /health` will return HTTP 200 with body `{"status":"ok"}`. The endpoint is registered on the `FastAPI()` instance and FastAPI serializes the returned dict to JSON automatically.
 S3-T1 TC-2 | `docker compose build fastapi` will exit 0. All five pinned packages (`fastapi==0.111.0`, `uvicorn[standard]==0.29.0`, `psycopg2-binary==2.9.9`, `pydantic==2.7.0`, `python-dotenv==1.0.1`) install cleanly from PyPI into `python:3.10-slim`.
+S3-T2 TC-1 | `GET /health` with no `X-API-Key` header will return HTTP 401. FastAPI's `Header(None)` default passes `None` to the dependency; the `x_api_key is None` branch raises `HTTPException(401)` before any route logic executes.
+S3-T2 TC-2 | `GET /health` with a wrong key value will return HTTP 401. The `x_api_key != _API_KEY` branch raises `HTTPException(401)`. The comparison is exact and case-sensitive.
+S3-T2 TC-3 | `GET /health` with the correct key value will return HTTP 200. The dependency returns without raising; the route handler executes and returns `{"status": "ok"}`.
+S3-T2 TC-4 | The 401 response body will be `{"detail":"Invalid or missing API key"}` — a fixed string that contains no key value.
+S3-T2 TC-5 | FastAPI logs will contain only request lines (method, path, status code) and the startup message. The key value (`inv01-test-key-do-not-use`) will not appear in any log line — no header logging, no key variable logging.
 
 ---
 
@@ -380,11 +391,32 @@ Items not tested:
 
 Decision: process lifecycle is irrelevant for a skeleton with no signal handling. python-dotenv readiness is implicit in the build success. Missing env var behaviour is the scope of S3-T2. WORKDIR isolation is confirmed by the build succeeding. No additional test cases added.
 
+S3-T2 — What did you not test in this task?
+
+Items not tested:
+- Whether the 200 response body also contains no key value (only the 401 body was checked for absence — the 200 body `{"status":"ok"}` cannot contain the key by construction, but was not explicitly asserted).
+- Whether `API_KEY=""` (empty string) also raises `RuntimeError` at startup — `if not _API_KEY` catches empty string and `None` alike, but this path was not run as a formal test case.
+- Whether the `X-API-Key` header value comparison is case-sensitive (it is — `!=` is an exact Python string comparison — but no mixed-case variant was submitted to confirm rejection).
+- Whether response headers for a 200 response contain the key value (tested separately in the S3-T2 build-time verification run; not included in the five formal TCs).
+
+Decision: the 200 body cannot contain the key by construction — there is no code path that reads `_API_KEY` into the response. Empty-string `API_KEY` is a deployment concern not present in normal operation. Case-sensitivity of header values is Python-default behaviour. Response header key-absence is verified in S3-T3 (INV-02-A). No additional test cases added.
+
 ---
 
 ### Code Review
 
 S3-T1 — No invariant touched. No code review required.
+
+S3-T2 — INV-01, INV-02 — Review `fastapi/main.py`: confirm auth enforcement and key non-disclosure.
+
+S3-T2 review finding:
+- `_API_KEY = os.environ.get("API_KEY")` — read once at module import, not per-request. No repeated env lookups. Confirmed.
+- `if not _API_KEY: raise RuntimeError("API_KEY environment variable is not set")` — catches both `None` (unset) and empty string. Uvicorn propagates this as a fatal import error and exits non-zero (exit 1 confirmed). Container does not accept connections. Confirmed — satisfies INV-01: app cannot start without a configured key.
+- `def get_api_key(x_api_key: str = Header(None))` — `Header(None)` means a missing header delivers `None` to the function; no special case needed for "missing vs wrong".
+- `if x_api_key is None or x_api_key != _API_KEY` — both missing and wrong key raise `HTTPException(status_code=401, detail="Invalid or missing API key")`. The detail string is a fixed literal; it contains no key value, no header echo. Confirmed — satisfies INV-02.
+- `app = FastAPI(dependencies=[Depends(get_api_key)])` — the global dependency is applied at the `FastAPI` constructor level. Every route registered on this `app` instance — present and future — is automatically protected. No per-route `dependencies=[]` override exists. Confirmed — satisfies INV-01.
+- `logger.info("FastAPI: API key authentication configured")` — the only log statement in the auth path. Contains no key value. Confirmed — satisfies INV-02.
+- No `print`, `logger.debug`, or `logger.warning` statement anywhere in `main.py` that references `_API_KEY`, `x_api_key`, or any request header value. TC-5 log output confirmed: `inv01-test-key-do-not-use` absent from all log lines after four requests. Confirmed — satisfies INV-02.
 
 ---
 
@@ -396,15 +428,21 @@ S3-T1: `python-dotenv==1.0.1` included in `requirements.txt` per task spec. Not 
 
 S3-T1: `# Auth dependency added in S3-T2` and `# Database lifespan added in S4-T1` placed at module level as forward-reference markers. The S3-T2 and S4-T1 task specs explicitly instruct replacing these comments with their respective implementations.
 
+S3-T2: The `# Auth dependency added in S3-T2` comment was removed and replaced with the actual implementation. The `# Database lifespan added in S4-T1` comment was retained — its implementation is not yet in scope.
+
+S3-T2: Test key `inv01-test-key-do-not-use` used for TC-1 through TC-5. This matches the key specified in the S3-T3 task spec (which calls for the same string) — using it here ensures consistent key-absence checks across both tasks. It is distinct from the `.env.example` placeholder (`change-me-api-key`) to prevent false negatives from placeholder leakage.
+
+S3-T2: `return x_api_key` in the dependency function returns the validated key value to FastAPI's DI framework. This is standard FastAPI practice — routes that declare the dependency as a parameter receive the return value. No current route declares it as a parameter, so the return value is unused. INV-02 is not implicated by this: the value is not written to any response or log.
+
 ---
 
 ### Verification Verdict
 
-[x] All planned cases passed (S3-T1: TC-1–2)
-[x] Test Cases Added During Session section complete — None discovered
-[x] CC challenge reviewed for S3-T1
-[x] Code review complete — S3-T1 touches no invariant; no code review required
+[x] All planned cases passed (S3-T1: TC-1–2; S3-T2: TC-1–5)
+[x] Test Cases Added During Session section complete — None discovered (both tasks)
+[x] CC challenge reviewed for S3-T1 and S3-T2
+[x] Code review complete — S3-T1 touches no invariant; INV-01/INV-02 reviewed for S3-T2
 [x] Scope decisions documented
 
-**Status: VERIFIED (S3-T1 — session IN PROGRESS)**
+**Status: VERIFIED (S3-T1 and S3-T2 — session IN PROGRESS)**
 **Engineer sign-off:** y vaishali rao — 2026-05-11
