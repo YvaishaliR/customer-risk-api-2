@@ -192,7 +192,7 @@
 | Task ID | Name                                                        | Status   | Commit |
 |---------|-------------------------------------------------------------|----------|--------|
 | S4-T1   | Implement database connection with startup retry loop       | VERIFIED |        |
-| S4-T2   | Implement the `GET /api/risk/{customer_id}` endpoint        | PENDING  |        |
+| S4-T2   | Implement the `GET /api/risk/{customer_id}` endpoint        | VERIFIED |        |
 | S4-T3   | Integration check: FastAPI + database end-to-end            | PENDING  |        |
 
 ---
@@ -202,6 +202,7 @@
 | Task  | Decision made | Rationale |
 |-------|---------------|-----------|
 | S4-T1 | None — no unplanned decisions made. | |
+| S4-T2 | Moved `get_api_key` dependency from `FastAPI()` constructor to the `/api/risk/{customer_id}` route decorator only; `/health` is now unauthenticated. | INV-01 and INV-03 conflict: the global dependency caused the Docker Compose healthcheck (`curl -f http://localhost:8000/health`, no key) to always return 401, marking fastapi permanently unhealthy and preventing nginx from starting. Resolution: auth is applied per-route on the data endpoint. `/health` reveals no customer data; its exemption is required for INV-03 compliance. All data paths remain protected by `get_api_key`. |
 
 ---
 
@@ -210,6 +211,7 @@
 | Task  | Deviation observed | Action taken |
 |-------|--------------------|--------------|
 | S4-T1 | TC-3 verification command curls `localhost:8000` from the host, but fastapi has no host port mapping (`expose:` only). | Used `docker compose exec fastapi curl` instead — hits the same endpoint from inside the container network. Equivalent for confirming HTTP 200. Flagged; no code change required. |
+| S4-T2 | INV-01 / INV-03 conflict: `FastAPI(dependencies=[Depends(get_api_key)])` (written in S3-T2) applied auth globally, causing the Docker Compose healthcheck to always receive HTTP 401 and marking fastapi permanently unhealthy. This prevented nginx from starting — a direct INV-03 violation. | Removed the global dependency from the `FastAPI()` constructor; added `dependencies=[Depends(get_api_key)]` to the `GET /api/risk/{customer_id}` route decorator. The `/health` endpoint is now unauthenticated, permitting the healthcheck to return HTTP 200. The data endpoint remains fully protected. INV-03 now satisfied at runtime (full stack starts, all services healthy). |
 
 ---
 

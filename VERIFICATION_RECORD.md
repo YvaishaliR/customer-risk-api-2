@@ -493,8 +493,9 @@ S3-T3: Image name resolved dynamically via `docker images --format` after `docke
 ---
 
 ## Task S4-T1 — Implement database connection with startup retry loop
+## Task S4-T2 — Implement the `GET /api/risk/{customer_id}` endpoint
 
-<!-- S4-T2 and S4-T3 will be added when completed. -->
+<!-- S4-T3 will be added when completed. -->
 
 ---
 
@@ -569,5 +570,90 @@ S4-T1: `get_db_conn()` is defined in this task but not wired to any route yet �
 [x] Code review complete — INV-03 reviewed for S4-T1
 [x] Scope decisions documented
 
-**Status: VERIFIED (S4-T1 — session IN PROGRESS)**
+**Status: VERIFIED (S4-T1, S4-T2 — session IN PROGRESS)**
 **Engineer sign-off:** y vaishali rao — 2026-05-11
+
+---
+
+### S4-T2 Test Cases Applied
+
+Source: S4-T2 task prompt — all test cases.
+
+| Case       | Scenario                                                              | Expected                                            | Result                                                                                                      |
+|------------|-----------------------------------------------------------------------|-----------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| S4-T2 TC-1 | `GET /api/risk/CUST001` with valid key                                | HTTP 200, correct tier, ≥1 factor in `risk_factors` | PASS — status 200, tier=`LOW`, 3 factors (`CONSISTENT_PAYMENTS`, `LOW_DEBT_RATIO`, `STABLE_INCOME`)         |
+| S4-T2 TC-2 | `GET /api/risk/NONEXISTENT` with valid key                            | HTTP 404, `"Customer not found"`                    | PASS — status 404, body `{"detail":"Customer not found"}`                                                   |
+| S4-T2 TC-3 | `GET /api/risk/CUST001` with no key                                   | HTTP 401                                            | PASS — status 401, body `{"detail":"Invalid or missing API key"}`                                           |
+| S4-T2 TC-4 | `GET /api/risk/CUST001` with wrong key                                | HTTP 401                                            | PASS — status 401, body `{"detail":"Invalid or missing API key"}`                                           |
+| S4-T2 TC-5 | `GET /api/risk/%27%3B%20DROP%20TABLE` (URL-encoded `'; DROP TABLE`)   | HTTP 400, validation rejects before any DB query    | PASS — status 400, body `{"detail":"Invalid customer_id format"}`                                           |
+| S4-T2 TC-6 | Response `customer_id` field                                          | Matches path param value; populated from DB row     | PASS — `"customer_id":"CUST001"` confirmed; populated from `row[0]`, not from path parameter variable       |
+| S4-T2 TC-7 | Response `tier` field                                                 | Member of `{LOW, MEDIUM, HIGH}`                     | PASS — `"tier":"LOW"` confirmed as member of the valid set                                                  |
+
+### S4-T2 Test Cases Added During Session
+
+| Case  | Scenario        | Expected | Result | Source |
+|-------|-----------------|----------|--------|--------|
+| ADD-1 | None discovered | | | |
+
+---
+
+### S4-T2 Prediction Statement
+
+S4-T2 TC-1 | `CUST001` is a seeded customer with tier `LOW` and three risk factors. The first SELECT returns one row; the second SELECT returns three rows ordered by `factor_code`. `RiskResponse` is returned with `customer_id` from `row[0]`, not from the path parameter. HTTP 200.
+S4-T2 TC-2 | `NONEXISTENT` is not in the `customers` table. `cursor.fetchone()` returns `None`. `HTTPException(404, detail="Customer not found")` is raised before any factor query is executed. HTTP 404.
+S4-T2 TC-3 | `get_api_key` is in the route's `dependencies=[]` list. A request with no `X-API-Key` header passes `None` to the dependency; the `is None` branch raises `HTTPException(401)`. HTTP 401 before any route logic executes.
+S4-T2 TC-4 | `"wrong-key" != _API_KEY` is True; `HTTPException(401)` is raised. HTTP 401 before any route logic executes.
+S4-T2 TC-5 | `'; DROP TABLE` contains `'`, `;`, and a space — none are alphanumeric. `_CUSTOMER_ID_RE.match()` returns `None`; `HTTPException(400)` is raised before the DB connection dependency is even resolved. HTTP 400.
+S4-T2 TC-6 | The response is built as `RiskResponse(customer_id=db_customer_id, ...)` where `db_customer_id = row[0]` from the customers SELECT. The `customer_id` path parameter variable is never referenced in the response construction. INV-04 satisfied.
+S4-T2 TC-7 | The `tier` column has a `CHECK (tier IN ('LOW','MEDIUM','HIGH'))` constraint and `NOT NULL` (INV-06). Any value fetched from the DB is guaranteed valid. `RiskResponse.tier: Literal["LOW","MEDIUM","HIGH"]` provides a second validation layer at the Pydantic serialization boundary.
+
+---
+
+### S4-T2 CC Challenge Output
+
+S4-T2 — What did you not test in this task?
+
+Items not tested:
+- Whether a customer with zero risk factors correctly returns HTTP 500 (`"Customer record is incomplete: no risk factors found"`). INV-07 mandates this path, but no such customer exists in the seed data — the negative path was not exercised.
+- Whether `get_db_conn()` raises HTTP 503 when the reconnect attempt in `conn.closed` branch fails — the dropped-connection path was not triggered mid-run.
+- Whether Pydantic raises a validation error if tier somehow arrived outside `{LOW, MEDIUM, HIGH}` (not reachable in practice due to DB CHECK constraint; handled by `response_model=RiskResponse`).
+- Whether the `ORDER BY factor_code` on the factors query is stable across identical inputs (deterministic ordering — Postgres guarantees stable sort for identical input; not stress-tested).
+- Whether `customer_id` values at the maximum length (20 alphanumeric characters) are accepted and at 21 characters are rejected with HTTP 400.
+
+Decision: the zero-factor HTTP 500 path is an INV-07 requirement; it is not tested here but will be covered in S7 invariant verification. The reconnect/503 path is not triggerable without an infrastructure fault — deferred to S7. The Pydantic and ORDER BY items are framework/DB guarantees. The boundary-length customer_id cases belong to `s4_api.sh` (S4-T3). No additional test cases added at this stage.
+
+---
+
+### S4-T2 Code Review
+
+S4-T2 — INV-01, INV-04, INV-05, INV-07, INV-09, INV-10 — Review `fastapi/main.py`: risk endpoint and auth restructuring.
+
+S4-T2 review finding:
+
+**INV-01** — `dependencies=[Depends(get_api_key)]` on the `GET /api/risk/{customer_id}` decorator ensures every request to the data endpoint carries a valid key. The global constructor no longer carries the dependency; `/health` is exempt. The data path remains fully protected. Confirmed.
+
+**INV-04** — `db_customer_id, tier = row` unpacks `row[0]` (the DB column) into `db_customer_id`. `RiskResponse(customer_id=db_customer_id, ...)` uses `db_customer_id` exclusively. The `customer_id` path parameter (the function argument) is used only in the regex check and as the `%s` query parameter — never in the response construction. Confirmed.
+
+**INV-05** — Both queries are plain SELECT statements with no subqueries that write. The first is `SELECT customer_id, tier FROM customers WHERE customer_id = %s`. The second is `SELECT factor_code, factor_description FROM risk_factors WHERE customer_id = %s ORDER BY factor_code`. No INSERT, UPDATE, DELETE, or DDL is present anywhere in the endpoint function. Confirmed.
+
+**INV-07** — `if not factor_rows: raise HTTPException(status_code=500, ...)` is present and placed after `fetchall()`. An empty list is falsy in Python — this correctly catches the zero-factor case. Confirmed.
+
+**INV-09** — `WHERE customer_id = %s` is a point query on the primary key. `fetchone()` returns at most one row. The endpoint never handles more than one customer row per request. Confirmed.
+
+**INV-10** — No `@functools.lru_cache`, no module-level dict, no response-level cache headers, no FastAPI `response_model_exclude_unset` caching. `get_db_conn()` fetches the connection from `app.state.db` (a live psycopg2 connection) and `fetchone()`/`fetchall()` are executed synchronously against Postgres on every request. No intermediate representation of DB state exists. Confirmed.
+
+**Parameterisation** — Both cursors use `%s` parameter substitution. No f-string, no `%` string formatting, no `.format()` call appears in any query string. Confirmed — no SQL injection path exists from the endpoint.
+
+**Cursor discipline** — Each `cursor()` is opened and closed in its own `try/finally` block. If `fetchone()` or `fetchall()` raises, the `finally` still runs and closes the cursor. Two separate cursor objects are used (one per query) — they do not share state. Confirmed.
+
+---
+
+### S4-T2 Scope Decisions
+
+S4-T2: INV-01 / INV-03 conflict resolved by moving auth from the `FastAPI()` constructor to the route decorator `dependencies=[Depends(get_api_key)]`. The `/health` endpoint is left unauthenticated. This is a deviation from S3-T2's design (global dependency) and is flagged as a deviation in SESSION_LOG.md. The docker-compose healthcheck (`curl -f http://localhost:8000/health`) can now return HTTP 200, allowing fastapi to be marked healthy and nginx to start.
+
+S4-T2: `_CUSTOMER_ID_RE = re.compile(r"^[A-Za-z0-9]{1,20}$")` compiled at module load (not per-request). Regex compilation is deterministic and idempotent; doing it once at import time is a standard Python optimisation. Matches the fixed stack spec `customer_id` regex exactly.
+
+S4-T2: Two separate `cursor()` / `try/finally / cur.close()` blocks used (one for the customer row, one for the factors). A single cursor was considered (reuse), but the two-block pattern makes cursor lifecycle unambiguous and avoids any possibility of result-set leakage between queries.
+
+S4-T2: `response_model=RiskResponse` on the route decorator causes Pydantic to validate the returned object before serialisation. Any tier value that somehow bypassed the DB CHECK constraint would be caught here and result in a 500 (unhandled `ValidationError`). This is a defence-in-depth layer, not a primary invariant enforcement point.

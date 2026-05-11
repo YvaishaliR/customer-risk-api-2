@@ -1,10 +1,13 @@
 import logging
 import os
+import re
 import time
 from contextlib import asynccontextmanager
+from typing import List, Literal
 
 import psycopg2
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from pydantic import BaseModel
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -71,9 +74,60 @@ def get_db_conn(request: Request) -> psycopg2.extensions.connection:
     return conn
 
 
-app = FastAPI(dependencies=[Depends(get_api_key)], lifespan=lifespan)
+class RiskFactor(BaseModel):
+    factor_code: str
+    factor_description: str
+
+
+class RiskResponse(BaseModel):
+    customer_id: str
+    tier: Literal["LOW", "MEDIUM", "HIGH"]
+    risk_factors: List[RiskFactor]
+
+
+app = FastAPI(lifespan=lifespan)
+
+_CUSTOMER_ID_RE = re.compile(r"^[A-Za-z0-9]{1,20}$")
 
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/risk/{customer_id}", response_model=RiskResponse, dependencies=[Depends(get_api_key)])
+def get_risk(customer_id: str, conn: psycopg2.extensions.connection = Depends(get_db_conn)):
+    if not _CUSTOMER_ID_RE.match(customer_id):
+        raise HTTPException(status_code=400, detail="Invalid customer_id format")
+
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT customer_id, tier FROM customers WHERE customer_id = %s", (customer_id,))
+        row = cur.fetchone()
+    finally:
+        cur.close()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    db_customer_id, tier = row
+
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT factor_code, factor_description FROM risk_factors"
+            " WHERE customer_id = %s ORDER BY factor_code",
+            (db_customer_id,),
+        )
+        factor_rows = cur.fetchall()
+    finally:
+        cur.close()
+
+    if not factor_rows:
+        raise HTTPException(status_code=500, detail="Customer record is incomplete: no risk factors found")
+
+    return RiskResponse(
+        customer_id=db_customer_id,
+        tier=tier,
+        risk_factors=[RiskFactor(factor_code=fc, factor_description=fd) for fc, fd in factor_rows],
+    )
