@@ -340,8 +340,7 @@ S2-T4: TIMEOUT set to 90 s (vs 60 s in s1_smoke.sh) because db-init must wait fo
 
 ## Task S3-T1 — Set up FastAPI project structure and dependencies
 ## Task S3-T2 — Implement API key authentication dependency
-
-<!-- S3-T3 will be added when completed. -->
+## Task S3-T3 — Verify auth enforcement with a dedicated test script
 
 ---
 
@@ -358,6 +357,12 @@ Source: EXECUTION_PLAN.md — S3-T1 test cases.
 | S3-T2 TC-3 | `GET /health` — correct `X-API-Key` value                    | HTTP 200                          | PASS — status 200                                            |
 | S3-T2 TC-4 | 401 response body                                            | Does not contain the key value    | PASS — body: `{"detail":"Invalid or missing API key"}`, key absent |
 | S3-T2 TC-5 | FastAPI logs after all requests                              | Do not contain the key value      | PASS — logs contain only status codes and startup message; key string `inv01-test-key-do-not-use` absent |
+| S3-T3 INV-01-A | `GET /health` — no `X-API-Key` header (`s3_auth.sh`)    | HTTP 401                          | PASS |
+| S3-T3 INV-01-B | `GET /health` — `X-API-Key: wrong` (`s3_auth.sh`)       | HTTP 401                          | PASS |
+| S3-T3 INV-01-C | `GET /health` — `X-API-Key: inv01-test-key-do-not-use` (`s3_auth.sh`) | HTTP 200           | PASS |
+| S3-T3 INV-01-D | 401 response body (`s3_auth.sh`)                         | No key string                     | PASS — body: `{"detail":"Invalid or missing API key"}` |
+| S3-T3 INV-02-A | Response headers for valid request (`s3_auth.sh`)        | No key string                     | PASS — headers contain no `inv01-test-key-do-not-use` |
+| S3-T3 INV-02-B | Container logs after all requests (`s3_auth.sh`)         | No key string                     | PASS — `PASSED: 6  FAILED: 0`, overall PASS, exit 0 |
 
 ### Test Cases Added During Session
 
@@ -376,6 +381,12 @@ S3-T2 TC-2 | `GET /health` with a wrong key value will return HTTP 401. The `x_a
 S3-T2 TC-3 | `GET /health` with the correct key value will return HTTP 200. The dependency returns without raising; the route handler executes and returns `{"status": "ok"}`.
 S3-T2 TC-4 | The 401 response body will be `{"detail":"Invalid or missing API key"}` — a fixed string that contains no key value.
 S3-T2 TC-5 | FastAPI logs will contain only request lines (method, path, status code) and the startup message. The key value (`inv01-test-key-do-not-use`) will not appear in any log line — no header logging, no key variable logging.
+S3-T3 INV-01-A | The `get_api_key` dependency receives `None` for a missing header and raises `HTTPException(401)` before any route handler executes. The script will receive HTTP 401.
+S3-T3 INV-01-B | `"wrong-key" != _API_KEY` is True; `HTTPException(401)` is raised. The script will receive HTTP 401.
+S3-T3 INV-01-C | The correct key passes both the `is None` and `!= _API_KEY` checks; the dependency returns without raising. The `/health` handler executes and returns HTTP 200.
+S3-T3 INV-01-D | The `HTTPException` detail is the fixed string `"Invalid or missing API key"` — no variable substitution. The key string `inv01-test-key-do-not-use` will not appear in the JSON response body.
+S3-T3 INV-02-A | Uvicorn does not copy request headers into response headers. The response headers (`content-type`, `content-length`, `date`, `server`) contain no key string.
+S3-T3 INV-02-B | No `logger`, `print`, or uvicorn access-log format includes the `X-API-Key` header value. Log lines show only method, path, and status code. The key string will not appear.
 
 ---
 
@@ -401,6 +412,15 @@ Items not tested:
 
 Decision: the 200 body cannot contain the key by construction — there is no code path that reads `_API_KEY` into the response. Empty-string `API_KEY` is a deployment concern not present in normal operation. Case-sensitivity of header values is Python-default behaviour. Response header key-absence is verified in S3-T3 (INV-02-A). No additional test cases added.
 
+S3-T3 — What did you not test in this task?
+
+Items not tested:
+- Whether the script exits 1 when any single check fails — only the all-pass path was exercised; the failure branch of `fail()` and the final `Overall: FAIL` / `exit 1` path were not run.
+- Whether the 30-second readiness timeout correctly aborts with a non-zero exit when fastapi never starts — the happy path was the only run.
+- Whether INV-02-B captures log lines written asynchronously after the last curl returns but before `docker logs` executes — uvicorn writes access logs synchronously within the request cycle, so no race condition exists in practice, but the timing was not stress-tested.
+
+Decision: the failure-branch of the script is structurally identical to s1_smoke.sh and s2_db.sh, both of which had their failure paths exercised in earlier sessions. The timeout abort path is analogous to s2_db.sh TC-2, already verified. Uvicorn's synchronous logging is a framework guarantee. No additional test cases added.
+
 ---
 
 ### Code Review
@@ -418,6 +438,16 @@ S3-T2 review finding:
 - `logger.info("FastAPI: API key authentication configured")` — the only log statement in the auth path. Contains no key value. Confirmed — satisfies INV-02.
 - No `print`, `logger.debug`, or `logger.warning` statement anywhere in `main.py` that references `_API_KEY`, `x_api_key`, or any request header value. TC-5 log output confirmed: `inv01-test-key-do-not-use` absent from all log lines after four requests. Confirmed — satisfies INV-02.
 
+S3-T3 — INV-01, INV-02 — Review `verify/s3_auth.sh`: confirm checks correctly target the invariants.
+
+S3-T3 review finding:
+- INV-01-A uses `curl` with no `-H` flag — confirms the "missing header" path, not the "wrong header" path. The two failure modes are tested separately (INV-01-A and INV-01-B). Confirmed.
+- INV-01-D captures the 401 body from a request with no header (no key sent) — the body cannot be influenced by a key the server never received. `grep -q "$TEST_KEY"` checks the exact test key string. Confirmed.
+- INV-02-A uses `curl -D - -o /dev/null` to capture only response headers, not the body. The grep checks headers for the key string. Confirmed — this closes the gap noted in S3-T2's CC challenge (response headers not formally tested in TC-1–5).
+- INV-02-B collects `docker logs "$CONTAINER" 2>&1` after all six curl requests have completed — stderr (uvicorn startup) is included via `2>&1`. The key string `inv01-test-key-do-not-use` is distinct from the `.env.example` placeholder, preventing false negatives. Confirmed.
+- The `trap cleanup EXIT` fires `docker stop` and `docker rm` on all exit paths including `exit 1` from the timeout abort — no container is left running on failure. Confirmed.
+- The readiness poll sends `X-API-Key: $TEST_KEY` — required since `/health` now enforces auth. A poll without the key would always receive 401 and loop until timeout. Confirmed.
+
 ---
 
 ### Scope Decisions
@@ -434,15 +464,19 @@ S3-T2: Test key `inv01-test-key-do-not-use` used for TC-1 through TC-5. This mat
 
 S3-T2: `return x_api_key` in the dependency function returns the validated key value to FastAPI's DI framework. This is standard FastAPI practice — routes that declare the dependency as a parameter receive the return value. No current route declares it as a parameter, so the return value is unused. INV-02 is not implicated by this: the value is not written to any response or log.
 
+S3-T3: The script runs the fastapi container standalone via `docker run` — no `docker compose up` — confirming auth enforcement is a property of the application, not of the compose startup chain.
+
+S3-T3: Image name resolved dynamically via `docker images --format` after `docker compose build fastapi` — avoids hardcoding a project-name-derived tag that could break if the directory is renamed.
+
 ---
 
 ### Verification Verdict
 
-[x] All planned cases passed (S3-T1: TC-1–2; S3-T2: TC-1–5)
-[x] Test Cases Added During Session section complete — None discovered (both tasks)
-[x] CC challenge reviewed for S3-T1 and S3-T2
-[x] Code review complete — S3-T1 touches no invariant; INV-01/INV-02 reviewed for S3-T2
+[x] All planned cases passed (S3-T1: TC-1–2; S3-T2: TC-1–5; S3-T3: INV-01-A through INV-02-B)
+[x] Test Cases Added During Session section complete — None discovered (all three tasks)
+[x] CC challenge reviewed for S3-T1, S3-T2, and S3-T3
+[x] Code review complete — S3-T1 touches no invariant; INV-01/INV-02 reviewed for S3-T2; INV-01/INV-02 script review for S3-T3
 [x] Scope decisions documented
 
-**Status: VERIFIED (S3-T1 and S3-T2 — session IN PROGRESS)**
+**Status: VERIFIED — Session 3 COMPLETE**
 **Engineer sign-off:** y vaishali rao — 2026-05-11
