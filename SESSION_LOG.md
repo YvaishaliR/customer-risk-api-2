@@ -301,8 +301,8 @@
 | Task ID | Name                                                           | Status   | Commit |
 |---------|----------------------------------------------------------------|----------|--------|
 | S6-T1   | Write the browser UI (`nginx/html/index.html`)                 | VERIFIED | b296daa5af0a0f2217a42adc4e8089c36f1a3673 |
-| S6-T2   | Update `nginx/Dockerfile` to copy static assets into the image | VERIFIED |        |
-| S6-T3   | Integration check: browser UI (`verify/s6_ui.sh`)              | VERIFIED | 7a0cdd9056491f1538e189e2a2862528dcb59901 |
+| S6-T2   | Update `nginx/Dockerfile` to copy static assets into the image | VERIFIED |7a0cdd9056491f1538e189e2a2862528dcb59901        |
+| S6-T3   | Integration check: browser UI (`verify/s6_ui.sh`)              | VERIFIED |17deeb5950a5d972631e884142dbf00705fb10db        |
 
 <!-- Update status: PENDING → IN PROGRESS → VERIFIED → (optionally BLOCKED) -->
 <!-- Record commit hash after each VERIFIED task. Use 'Task N.N — ' prefix consistently. -->
@@ -360,11 +360,11 @@
 
 | Task ID | Name                                                              | Status   | Commit |
 |---------|-------------------------------------------------------------------|----------|--------|
-| S7-T1   | Cold-start verification (`verify/s7_coldstart.sh`)                | VERIFIED |        |
-| S7-T2   | Data invariant checks (`verify/s7_invariants_data.sh`)            | VERIFIED |        |
-| S7-T3   | Auth invariant checks (`verify/s7_invariants_auth.sh`)            | VERIFIED |        |
-| S7-T4   | Schema invariant checks (`verify/s7_invariants_schema.sh`)        | VERIFIED |        |
-| S7-T5   | Master runner (`verify/run_all.sh`)                               | VERIFIED |        |
+| S7-T1   | Cold-start verification (`verify/s7_coldstart.sh`)                | VERIFIED |66a80e2e5c52a455c25448adb4e0d79cf3957541        |
+| S7-T2   | Data invariant checks (`verify/s7_invariants_data.sh`)            | VERIFIED |1114e4db20277ab404fc1fcece1072c8631bcbe1        |
+| S7-T3   | Auth invariant checks (`verify/s7_invariants_auth.sh`)            | VERIFIED |0969f6690b7ed54dcffe6ea113c7dfcf25e95042        |
+| S7-T4   | Schema invariant checks (`verify/s7_invariants_schema.sh`)        | VERIFIED |2aaa30fa4333b4c62da3c3a13dc015aea861b615        |
+| S7-T5   | Master runner (`verify/run_all.sh`)                               | VERIFIED |6bc9802ac33c2a7fb057435b2b23ee14eeff0993        |
 
 ---
 
