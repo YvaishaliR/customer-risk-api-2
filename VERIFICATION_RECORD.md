@@ -1298,5 +1298,103 @@ S6-T3: Runtime verification deferred — Docker Desktop was unavailable at log-u
 
 ---
 
-**Status: VERIFIED (S6-T1, S6-T2, S6-T3) — Session 6 COMPLETE**  
+**Status: VERIFIED (S6-T1, S6-T2, S6-T3) — Session 6 COMPLETE**
+**Engineer sign-off:** y vaishali rao — 2026-05-12
+
+---
+---
+
+# VERIFICATION_RECORD — Session 7: End-to-End Invariant Verification
+
+**Session:** Session 7 — End-to-end invariant verification
+**Date:** 2026-05-12
+**Engineer:** y vaishali rao
+
+---
+
+## Task S7-T1 — Cold-start verification (`verify/s7_coldstart.sh`)
+
+---
+
+### Test Cases Applied
+
+Source: S7-T1 task prompt and session test cases. **Runtime executed** — Docker Desktop available. Script run twice: first run exposed INV-03 timestamp format bug (fixed); second run passed all four checks.
+
+| Case            | Scenario                                                          | Expected                                                     | Result                                                                                                    |
+|-----------------|-------------------------------------------------------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| S7-T1 TC-1      | Cold start — `docker compose down -v` then `up -d --build`        | All services ready within 120s                               | PASS — stack ready after **24s** (first poll); postgres healthy, db-init exited 0, fastapi healthy, nginx running |
+| S7-T1 TC-2      | First request after cold start — `GET /` with Basic Auth          | HTTP 200, no 500                                             | PASS — S7-COLD-A: HTTP 200                                                                                |
+| S7-T1 TC-3      | First API request after cold start — `GET /api/risk/CUST001`      | HTTP 200, tier + non-empty risk_factors                      | PASS — S7-COLD-B: HTTP 200; S7-COLD-C: tier=LOW, 1 factor                                                |
+| S7-T1 INV-03    | db-init finish time < fastapi first-healthy time                  | `db-init.FinishedAt` < `fastapi.Health.Log[0].Start` (ExitCode=0) | PASS — db-init: `06:49:55Z`, fastapi first-healthy: `06:50:05 UTC` (10s gap)                         |
+
+**Script output (second run — all checks passing):**
+```
+PASS: S7-COLD-A: GET / with Basic Auth → HTTP 200
+PASS: S7-COLD-B: GET /api/risk/CUST001 with Basic Auth → HTTP 200
+PASS: S7-COLD-C: Response contains tier (LOW) and non-empty risk_factors (1 factor(s))
+PASS: INV-03: db-init finished (2026-05-12T06:49:55.473308504Z) before fastapi first-healthy (2026-05-12 06:50:05.991440567 +0000 UTC)
+Elapsed time: 24s
+PASSED: 4  FAILED: 0
+Overall: PASS
+```
+
+### Test Cases Added During Session
+
+| Case  | Scenario                                            | Expected                    | Result | Source                  |
+|-------|-----------------------------------------------------|-----------------------------|--------|-------------------------|
+| ADD-1 | INV-03 timestamp format mismatch (first-run failure) | Script correctly detects ordering | FAIL then PASS after fix | Runtime — first run exposed RFC3339 vs Go time format incompatibility |
+
+---
+
+### Prediction Statement
+
+S7-T1 TC-1 | All images are cached from prior sessions. `docker compose up -d --build` rebuilds from cache (no layer changes). The full startup chain (postgres → db-init → fastapi → nginx) completes within 24s. Poll loop detects all conditions satisfied at the first check (ELAPSED=0 after the initial `docker compose up -d` handoff waits for `depends_on` conditions internally).
+S7-T1 TC-2 | Stack fully operational after cold start. nginx serves `index.html` with HTTP 200 to an authenticated GET request.
+S7-T1 TC-3 | FastAPI has established a DB connection during lifespan startup. CUST001 is in the seeded database. The request returns a valid `RiskResponse` with tier=LOW.
+S7-T1 INV-03 | db-init exits 0 before Docker starts fastapi (enforced by `depends_on: condition: service_completed_successfully`). fastapi health check passes ~10s after fastapi starts. db-init.FinishedAt is earlier than fastapi's first healthy timestamp.
+
+---
+
+### CC Challenge Output
+
+S7-T1 — What did you not test in this task?
+
+Items not tested:
+- Whether the 120-second timeout correctly aborts on a truly cold start where images must be pulled from Docker Hub (all images were cached; pull time not exercised).
+- Whether `docker compose up -d --build` correctly rebuilds when source files change (all layers were cached in both runs; no layer-busting change was made).
+- Whether the INV-03 check correctly FAILS when fastapi started before db-init (not reachable in correct compose configuration; failure path confirmed by first-run bug, not by a deliberate ordering violation).
+- Whether the `norm_ts` function handles edge cases such as timestamps with sub-second precision differences that round to the same second (db-init and fastapi are always separated by multiple seconds due to the healthcheck interval).
+- Whether step-7 explicit teardown interacts correctly with the `trap - EXIT` disarm when the script is interrupted between step 6 and step 7 (interrupt mid-run would still leave containers running after `trap - EXIT`; the safety net is the trap before that line).
+
+Decision: pull-time cold start is an infrastructure concern; the 24s time is build-cache performance. Layer-busting is covered by standard Docker build semantics. The ordering-violation negative path is architecturally impossible with the current compose file. Sub-second precision at second boundaries is an acceptable limitation for an operational test. Mid-step interrupt is an edge case not relevant to normal operation. No additional test cases added.
+
+---
+
+### Code Review
+
+S7-T1 — INV-03 — Review `verify/s7_coldstart.sh`: confirm INV-03 timestamp comparison is correct and that `norm_ts` handles both Docker timestamp formats.
+
+S7-T1 review finding:
+
+**`norm_ts()` correctness** — `echo "$1" | cut -c1-19 | tr 'T' ' '` extracts the first 19 characters of any timestamp and replaces `T` with space. For RFC3339 (`2026-05-12T06:48:20.525...`): chars 1–19 = `2026-05-12T06:48:20`; after `tr` = `2026-05-12 06:48:20`. For Go time format (`2026-05-12 06:48:31.036...`): chars 1–19 = `2026-05-12 06:48:31`; no `T` to replace = `2026-05-12 06:48:31`. Both produce `YYYY-MM-DD HH:MM:SS` — structurally identical and lexicographically comparable. Confirmed correct.
+
+**Health log first-pass extraction** — `{{range .State.Health.Log}}{{if eq .ExitCode 0}}{{.Start}}{{"\\n"}}{{end}}{{end}}` iterates all retained health log entries (up to 5 by default) and prints the `Start` of each with `ExitCode=0`. `head -1` takes the first (earliest). The health log retains the most recent 5 entries; since fastapi was healthy from the first or second check and the stack had not been running long, the first passing entry is the earliest retained. Confirmed sufficient for INV-03.
+
+**Fallback to `StartedAt`** — If `FA_HEALTHY_AT` is empty (health log contains no passing entry — should not occur after confirmed `FA_HEALTH=healthy` in the poll loop), the script falls back to `State.StartedAt`. Since fastapi starts only after db-init completes (`depends_on`), `StartedAt > FinishedAt(db-init)` is also true. The fallback preserves correctness. Confirmed.
+
+**`trap - EXIT` disarm** — `trap - EXIT` removes the cleanup handler after step-7 explicit teardown. This prevents the trap from running a second `docker compose down -v` on normal exit (which would produce harmless but noisy "no such container" errors). On error paths that exit before step 7, the trap remains active and cleans up. Confirmed correct.
+
+---
+
+### Scope Decisions
+
+S7-T1: `nginx: healthy` spec deviation — nginx has no healthcheck in `docker-compose.yml`; used `running` state. The spec requirement is noted in an inline comment in the script. Recorded as a deviation in SESSION_LOG.md. To satisfy the literal spec, a healthcheck entry would need to be added to the nginx service in `docker-compose.yml`.
+
+S7-T1: `norm_ts()` defined as a shell function rather than inline `cut | tr` at each use site. Called twice (once for each timestamp). The function documents the format conversion intent more clearly than repeated inline commands would.
+
+S7-T1: INV-03 uses fastapi's first health log entry with `ExitCode=0` (not `State.StartedAt`) to match the task spec's "first-healthy timestamp" phrasing. `StartedAt` is an earlier bound (fastapi started before it passed its health check) and would also satisfy the invariant, but the health log timestamp is the more precise and spec-aligned value.
+
+---
+
+**Status: VERIFIED (S7-T1) — Session 7 IN PROGRESS**
 **Engineer sign-off:** y vaishali rao — 2026-05-12

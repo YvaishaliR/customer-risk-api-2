@@ -339,7 +339,69 @@
 ## Session Completion
 
 <!-- Fill in when all tasks in this session are VERIFIED. -->
-**Session integration check:** PASSED (code review; runtime deferred — Docker Desktop unavailable at time of verification)  
-**All tasks verified:** Yes  
-**Status updated to:** COMPLETE  
+**Session integration check:** [x] PASSED (code review; runtime deferred — Docker Desktop unavailable at time of verification)
+**All tasks verified:** [x] Yes
+**PR raised:** [ ] Yes — [PR link or number]
+**Status updated to:** COMPLETE
 **Engineer sign-off:** y vaishali rao — 2026-05-12
+
+---
+---
+
+## Session: Session 7 — End-to-End Invariant Verification
+
+**Date started:** 2026-05-12
+**Engineer:** y vaishali rao
+**Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
+**Claude.md version:** v1.0
+**Status:** IN PROGRESS
+
+---
+
+## Tasks
+
+| Task ID | Name                                                              | Status   | Commit |
+|---------|-------------------------------------------------------------------|----------|--------|
+| S7-T1   | Cold-start verification (`verify/s7_coldstart.sh`)                | VERIFIED |        |
+| S7-T2   | Data invariant checks (`verify/s7_invariants_data.sh`)            | PENDING  |        |
+| S7-T3   | Auth invariant checks (`verify/s7_invariants_auth.sh`)            | PENDING  |        |
+| S7-T4   | Schema invariant checks (`verify/s7_invariants_schema.sh`)        | PENDING  |        |
+| S7-T5   | Master runner (`verify/run_all.sh`)                               | PENDING  |        |
+
+---
+
+## Decision Log
+
+| Task  | Decision made | Rationale |
+|-------|---------------|-----------|
+| S7-T1 | Used `running` instead of `healthy` for nginx wait condition. | `docker-compose.yml` defines no healthcheck for the nginx service — `Health.Status` is always empty for that container. `running` state is the maximum observable signal and is consistent with s5_nginx.sh and s6_ui.sh. Flagged as a deviation. |
+| S7-T1 | Normalised both timestamps to `YYYY-MM-DD HH:MM:SS` via `norm_ts()` before comparing for INV-03. | `State.FinishedAt` uses RFC3339 (`T` separator, `Z` suffix); health log `Start` uses Go's default time format (space separator, `+0000 UTC` suffix). Direct lexicographic comparison fails because `T` (ASCII 84) > space (ASCII 32). Truncating both to the first 19 chars and replacing `T`→space makes them structurally identical and correctly comparable. |
+| S7-T1 | Disarmed `trap` with `trap - EXIT` after explicit step-7 teardown. | Prevents double `docker compose down -v` on clean exit (which would produce spurious "no such container" errors) while keeping the safety net active for abort or error paths where step 7 was never reached. |
+
+---
+
+## Deviations
+
+| Task  | Deviation observed | Action taken |
+|-------|--------------------|--------------|
+| S7-T1 | Task spec says "nginx: healthy" but `docker-compose.yml` has no healthcheck for nginx. Direct implementation would cause the poll loop to never satisfy the nginx condition and always time out. | Used `[ "$NG_STATUS" = "running" ]` — the maximum observable signal for a container with no healthcheck. Added an inline comment in the script documenting the conflict. No change to `docker-compose.yml` (outside task scope). |
+| S7-T1 | First run failed INV-03: `State.FinishedAt` (RFC3339) and health log `Start` (Go time format) have different field separators — lexicographic comparison reversed the ordering. | Added `norm_ts()` helper to truncate both timestamps to `YYYY-MM-DD HH:MM:SS` before comparison. Second run: PASSED: 4 FAILED: 0. |
+
+---
+
+## Claude.md Changes
+
+| Change | Reason | New Claude.md version | Tasks re-verified |
+|--------|--------|-----------------------|-------------------|
+| None   |        |                       |                   |
+
+---
+
+## Session Completion
+
+<!-- Fill in when all tasks in this session are VERIFIED. -->
+**Session integration check:** [ ] PASSED  [ ] FAILED (see notes)
+**All tasks verified:** [ ] Yes  [x] No — S7-T2 through S7-T5 still PENDING
+**PR raised:** [ ] Yes — [PR link or number]
+**Status updated to:** IN PROGRESS
+**Engineer sign-off:** [ENGINEER: NAME AND DATE — do not leave blank before committing]
