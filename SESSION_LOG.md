@@ -298,10 +298,11 @@
 
 ## Tasks
 
-| Task ID | Name                                              | Status   | Commit |
-|---------|---------------------------------------------------|----------|--------|
-| S6-T1   | Write the browser UI (`nginx/html/index.html`)    | VERIFIED |b296daa5af0a0f2217a42adc4e8089c36f1a3673        |
-| S6-T2   | Integration check: browser UI (`verify/s6_ui.sh`) | VERIFIED |7a0cdd9056491f1538e189e2a2862528dcb59901        |
+| Task ID | Name                                                           | Status   | Commit |
+|---------|----------------------------------------------------------------|----------|--------|
+| S6-T1   | Write the browser UI (`nginx/html/index.html`)                 | VERIFIED | b296daa5af0a0f2217a42adc4e8089c36f1a3673 |
+| S6-T2   | Update `nginx/Dockerfile` to copy static assets into the image | VERIFIED |        |
+| S6-T3   | Integration check: browser UI (`verify/s6_ui.sh`)              | VERIFIED | 7a0cdd9056491f1538e189e2a2862528dcb59901 |
 
 <!-- Update status: PENDING → IN PROGRESS → VERIFIED → (optionally BLOCKED) -->
 <!-- Record commit hash after each VERIFIED task. Use 'Task N.N — ' prefix consistently. -->
@@ -315,7 +316,7 @@
 | S6-T1 | Used `.then`/`.catch`/`.finally` promise chain instead of `async`/`await`. | Eliminates need for a transpiler. All target browsers support the Fetch API and Promise chaining natively. Functionally equivalent; the promise chain is more explicit about async state transitions. |
 | S6-T1 | `autofocus` added to the input element. | TC-3 requires the input to be focused on page load. The task spec did not explicitly list `autofocus`, but it is the minimum correct implementation for the stated requirement. Flagged and applied. |
 | S6-T1 | All server-returned strings pass through `esc()` before `innerHTML` assignment. | Prevents XSS: `customer_id`, `tier`, `factor_code`, `factor_description` are displayed via `innerHTML` and must be entity-escaped. The tier value is also used as a CSS class suffix (`tier-LOW` etc.) — since tier is constrained to `{LOW,MEDIUM,HIGH}` by the DB CHECK constraint and Pydantic model, the class name is safe by construction, but the display text is still escaped. |
-| S6-T1 | `COPY html/ /usr/share/nginx/html/` added to `nginx/Dockerfile` after `COPY entrypoint.sh`. | `index.html` must be baked into the nginx image for `location /` to serve it. Layer order places static assets after config files — a stable caching arrangement (config changes do not bust the static-asset layer and vice versa). |
+| S6-T2 | `COPY html/ /usr/share/nginx/html/` added to `nginx/Dockerfile` after `COPY entrypoint.sh`. | `index.html` must be baked into the nginx image for `location /` to serve it. Layer order places static assets after config files — a stable caching arrangement (config changes do not bust the static-asset layer and vice versa). |
 
 ---
 

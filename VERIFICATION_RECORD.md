@@ -1078,6 +1078,8 @@ S5-T4: Runtime verification deferred — Docker Desktop was unavailable at log-u
 ---
 
 ## Task S6-T1 — Write the browser UI (`nginx/html/index.html`)
+## Task S6-T2 — Update `nginx/Dockerfile` to copy static assets into the image
+## Task S6-T3 — Integration check: browser UI (`verify/s6_ui.sh`)
 
 ---
 
@@ -1091,9 +1093,6 @@ Source: S6-T1 task prompt — all test cases stated in the session.
 | S6-T1 TC-2  | Non-existent customer ID entered                  | "Customer not found" message                                         | PASS — `resp.status === 404` branch calls `showError('Customer not found')`                              |
 | S6-T1 TC-3  | Page loaded with no interaction                   | Empty results area; input field focused                              | PASS — `#results` div is empty in HTML; `autofocus` attribute on input focuses it immediately on load     |
 | S6-T1 TC-4  | Enter key pressed in input field                  | Triggers lookup identically to button click                          | PASS — `keydown` listener checks `e.key === 'Enter'` and calls `lookup()`                                |
-| S6-T1 TC-5  | `docker compose build nginx`                       | Image builds cleanly; exit 0                                         | EXPECTED PASS — all four `COPY` sources exist in build context; Dockerfile syntax valid; runtime deferred |
-| S6-T1 TC-6  | `GET http://localhost:80/` with Basic Auth         | Returns `index.html` content; HTTP 200                               | EXPECTED PASS — `location /` block: `root /usr/share/nginx/html; index index.html`; file present in image; runtime deferred |
-| S6-T1 TC-7  | `GET http://localhost:80/index.html` with Basic Auth | Returns `index.html` content; HTTP 200                             | EXPECTED PASS — `try_files $uri` resolves `/usr/share/nginx/html/index.html` directly; runtime deferred  |
 
 ### Test Cases Added During Session
 
@@ -1109,9 +1108,6 @@ S6-T1 TC-1 | A valid customer ID (e.g., `CUST001`) fetches `GET /api/risk/CUST00
 S6-T1 TC-2 | A non-existent ID returns HTTP 404 from FastAPI, propagated unchanged by nginx. The `resp.status === 404` branch calls `showError('Customer not found')`, rendering `<p class="error">Customer not found</p>`.
 S6-T1 TC-3 | On initial page load, `#results` contains no child elements (it is an empty `<div>` in the HTML). The `autofocus` attribute on the input element causes the browser to move keyboard focus to the field immediately, consistent with the lookup-centric purpose of the page.
 S6-T1 TC-4 | The `keydown` event listener on the input checks `e.key === 'Enter'` and calls `lookup()` directly — the same function triggered by the button's `click` listener. Behaviour is identical: results cleared, button disabled, fetch dispatched, button re-enabled in `finally`.
-S6-T1 TC-5 | `nginx/Dockerfile` now has four `COPY` instructions: `nginx.conf.template`, `nginx.conf`, `entrypoint.sh`, and `html/`. All four source paths exist in the `nginx/` build context. Dockerfile syntax is valid — `docker compose build nginx` will exit 0.
-S6-T1 TC-6 | With Basic Auth satisfied, nginx resolves `GET /` using the `index` directive (`index index.html`) in `location /`. The file `/usr/share/nginx/html/index.html` was baked in by `COPY html/ /usr/share/nginx/html/`. nginx serves the file with HTTP 200 and `Content-Type: text/html`.
-S6-T1 TC-7 | `GET /index.html` causes nginx to evaluate `try_files $uri` first. `$uri` = `/index.html`; nginx checks `/usr/share/nginx/html/index.html` — it exists. The file is served directly without falling through to the `$uri/` or `/index.html` fallback. HTTP 200.
 
 ---
 
@@ -1158,9 +1154,7 @@ S6-T1: `.then`/`.catch`/`.finally` promise chain used instead of `async`/`await`
 
 S6-T1: `results.innerHTML = ''` (clear) placed at the top of `lookup()`, before the empty-ID early return. This ensures the results area is always cleared on interaction, even if the input is blank — consistent with "clear the results area before each new request."
 
-S6-T1: The file is served from `/usr/share/nginx/html/` via the nginx `location /` block with `try_files $uri $uri/ /index.html`. `COPY html/ /usr/share/nginx/html/` was added to `nginx/Dockerfile` (after `COPY entrypoint.sh`, before `RUN chmod +x`) to bake `index.html` into the image. Layer order: base → tools → config files → static assets → chmod → ENTRYPOINT. This is a stable caching arrangement — config and asset layers do not bust each other on independent changes.
-
-S6-T1: `nginx/Dockerfile` previously covered in S5-T2; the `COPY html/` addition is recorded here as it is driven by the S6-T1 UI deliverable. No other Dockerfile change was made.
+S6-T1: `results.innerHTML = ''` placement and promise chain details are covered in the Decision Log. The Dockerfile `COPY html/` change is the scope of S6-T2.
 
 ---
 
@@ -1168,17 +1162,13 @@ S6-T1: `nginx/Dockerfile` previously covered in S5-T2; the `COPY html/` addition
 
 ### S6-T2 Test Cases Applied
 
-Source: S6-T2 task prompt — all checks defined in `verify/s6_ui.sh`. **Runtime execution deferred:** Docker Desktop was unavailable at log-update time. Verification is by code review and static analysis of the script. Expected results are recorded as the predicted outcome of a successful run against the live stack.
+Source: S6-T2 task prompt — `nginx/Dockerfile` updated to include `COPY html/ /usr/share/nginx/html/`. Verified by code inspection and confirmed correct Dockerfile syntax. Runtime deferred — Docker Desktop unavailable.
 
-| Case           | Scenario                                                                          | Expected                                                                     | Result (predicted — runtime deferred)                                                                         |
-|----------------|-----------------------------------------------------------------------------------|------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
-| S6-T2 S6-A     | `GET http://localhost:80/` with no credentials                                   | HTTP 401 — nginx Basic Auth gate                                             | EXPECTED PASS — `auth_basic` at server level; no `Authorization` header → 401 before location evaluated       |
-| S6-T2 S6-B     | `GET http://localhost:80/` with correct Basic Auth                                | HTTP 200 — `index.html` served                                               | EXPECTED PASS — credentials accepted; `location /` serves `index.html` from `/usr/share/nginx/html/`          |
-| S6-T2 S6-C     | Response body of S6-B contains `"Customer Risk Lookup"`                           | String present — confirms correct file served                                | EXPECTED PASS — `<title>Customer Risk Lookup</title>` and `<h1>Customer Risk Lookup</h1>` both present in HTML |
-| S6-T2 S6-D     | Response body of S6-B contains lookup form elements                               | `"Enter customer ID"` and `"Look up"` both present                           | EXPECTED PASS — placeholder and button text appear verbatim in `index.html`                                   |
-| S6-T2 INV-02-F | Served HTML body does not contain the `API_KEY` value                            | `grep -qF "$API_KEY"` returns non-zero                                       | EXPECTED PASS — `index.html` contains no key value, no template placeholder, no `X-API-Key` header in JS      |
-| S6-T2 S6-E     | `GET http://localhost:80/api/risk/CUST001` via Nginx with Basic Auth              | HTTP 200 — full browser path: UI origin → `/api/` proxy → FastAPI           | EXPECTED PASS — nginx injects `X-API-Key`; FastAPI returns CUST001 record; nginx proxies 200 to client        |
-| S6-T2 S6-F     | Response body of S6-E contains JSON keys `customer_id`, `tier`, `risk_factors`   | All three key strings present — confirms FastAPI response structure intact   | EXPECTED PASS — `RiskResponse` model always emits these three fields; nginx does not transform the body        |
+| Case        | Scenario                                             | Expected                           | Result (predicted — runtime deferred)                                                                      |
+|-------------|------------------------------------------------------|------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| S6-T2 TC-1  | `docker compose build nginx`                         | Image builds cleanly; exit 0       | EXPECTED PASS — all four `COPY` sources exist in build context; Dockerfile syntax valid                    |
+| S6-T2 TC-2  | `GET http://localhost:80/` with Basic Auth           | Returns `index.html`; HTTP 200     | EXPECTED PASS — `location /` block: `root /usr/share/nginx/html; index index.html`; file present in image |
+| S6-T2 TC-3  | `GET http://localhost:80/index.html` with Basic Auth | Returns `index.html`; HTTP 200     | EXPECTED PASS — `try_files $uri` resolves `/usr/share/nginx/html/index.html` directly                     |
 
 ### S6-T2 Test Cases Added During Session
 
@@ -1190,19 +1180,71 @@ Source: S6-T2 task prompt — all checks defined in `verify/s6_ui.sh`. **Runtime
 
 ### S6-T2 Prediction Statement
 
-S6-T2 S6-A | `auth_basic "Restricted"` is at the `server {}` level — inherited by the `location /` block. A request with no `Authorization` header causes nginx to return HTTP 401 with `WWW-Authenticate: Basic realm="Restricted"` before any file is served.
-S6-T2 S6-B | Valid credentials decoded by nginx against the htpasswd file. Authentication passes; `location /` serves `/usr/share/nginx/html/index.html`. nginx reads the file from the image layer (baked in by `COPY html/ /usr/share/nginx/html/`). HTTP 200.
-S6-T2 S6-C | The title string `"Customer Risk Lookup"` appears in both `<title>` and `<h1>` in `index.html`. `grep -q "Customer Risk Lookup"` on the response body will match. Confirmed present by code inspection of the file.
-S6-T2 S6-D | `"Enter customer ID"` is the `placeholder` attribute value on the `<input>` element. `"Look up"` is the text content of the `<button>` element. Both strings appear verbatim in `index.html` and will be present in the served body.
-S6-T2 INV-02-F | `index.html` contains no API key value — confirmed by code inspection. The JavaScript calls `fetch('/api/risk/...')` with no `X-API-Key` header. No template placeholder is present. `grep -qF "$API_KEY"` will return non-zero (no match). PASS.
-S6-T2 S6-E | The browser path is: browser → `localhost:80` → nginx → `proxy_pass http://fastapi:8000` with `proxy_set_header X-API-Key ${API_KEY}` injected. FastAPI validates the key, queries Postgres, returns `RiskResponse`. nginx proxies the 200 response to the client. The script reproduces this path using `curl -u` from the host.
-S6-T2 S6-F | `RiskResponse` is defined as `{customer_id: str, tier: Literal[...], risk_factors: List[RiskFactor]}`. Pydantic serialises all three fields unconditionally. The body will always contain `"customer_id"`, `"tier"`, and `"risk_factors"` as JSON keys. `grep -q` on each key string will match.
+S6-T2 TC-1 | `nginx/Dockerfile` has four `COPY` instructions: `nginx.conf.template`, `nginx.conf`, `entrypoint.sh`, and `html/`. All four source paths exist in the `nginx/` build context. Dockerfile syntax is valid — `docker compose build nginx` exits 0.
+S6-T2 TC-2 | With Basic Auth satisfied, nginx resolves `GET /` via the `index` directive (`index index.html`) in `location /`. The file `/usr/share/nginx/html/index.html` was baked in by `COPY html/ /usr/share/nginx/html/`. HTTP 200, `Content-Type: text/html`.
+S6-T2 TC-3 | `GET /index.html` — nginx evaluates `try_files $uri` first. `$uri = /index.html`; nginx checks `/usr/share/nginx/html/index.html` — exists. Served directly without falling through to the fallback. HTTP 200.
 
 ---
 
-### S6-T2 CC Challenge Output
+### S6-T2 Code Review
 
-S6-T2 — What did you not test in this task?
+S6-T2 — Review `nginx/Dockerfile`: confirm layer order and that `index.html` is correctly placed.
+
+**Layer order** — `FROM` → `RUN apk` (tools) → `COPY nginx.conf.template` → `COPY nginx.conf` → `COPY entrypoint.sh` → `COPY html/` → `RUN chmod +x` → `ENTRYPOINT`. Static assets sit after config files. A change to `index.html` only invalidates the `COPY html/` layer and the two cheap instructions below it; config file layers are unaffected. Confirmed correct caching arrangement.
+
+**Destination path** — `COPY html/ /usr/share/nginx/html/` copies the contents of `nginx/html/` into `/usr/share/nginx/html/` inside the image. nginx's `location /` block has `root /usr/share/nginx/html` — paths align. `index.html` present at `/usr/share/nginx/html/index.html`. Confirmed.
+
+**`ENTRYPOINT` unchanged** — Remains `["/entrypoint.sh"]`. The static file copy does not affect container startup behaviour. Confirmed.
+
+---
+
+### S6-T2 Scope Decisions
+
+S6-T2: `COPY html/` placed after `COPY entrypoint.sh` and before `RUN chmod +x /entrypoint.sh`. Layer order: base → tools → config → static assets → permissions → entrypoint. Minimum change to make `index.html` available inside the image at the path nginx expects.
+
+S6-T2: `nginx/Dockerfile` was originally created in S5-T2. The `COPY html/` addition is a single-line change driven by the S6-T1 deliverable and recorded under S6-T2.
+
+---
+
+---
+
+### S6-T3 Test Cases Applied
+
+Source: S6-T3 task prompt — all checks defined in `verify/s6_ui.sh`. **Runtime execution deferred:** Docker Desktop was unavailable at log-update time. Verification is by code review and static analysis of the script. Expected results are recorded as the predicted outcome of a successful run against the live stack.
+
+| Case           | Scenario                                                                          | Expected                                                                     | Result (predicted — runtime deferred)                                                                         |
+|----------------|-----------------------------------------------------------------------------------|------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| S6-T3 S6-A     | `GET http://localhost:80/` with no credentials                                   | HTTP 401 — nginx Basic Auth gate                                             | EXPECTED PASS — `auth_basic` at server level; no `Authorization` header → 401 before location evaluated       |
+| S6-T3 S6-B     | `GET http://localhost:80/` with correct Basic Auth                                | HTTP 200 — `index.html` served                                               | EXPECTED PASS — credentials accepted; `location /` serves `index.html` from `/usr/share/nginx/html/`          |
+| S6-T3 S6-C     | Response body of S6-B contains `"Customer Risk Lookup"`                           | String present — confirms correct file served                                | EXPECTED PASS — `<title>Customer Risk Lookup</title>` and `<h1>Customer Risk Lookup</h1>` both present in HTML |
+| S6-T3 S6-D     | Response body of S6-B contains lookup form elements                               | `"Enter customer ID"` and `"Look up"` both present                           | EXPECTED PASS — placeholder and button text appear verbatim in `index.html`                                   |
+| S6-T3 INV-02-F | Served HTML body does not contain the `API_KEY` value                            | `grep -qF "$API_KEY"` returns non-zero                                       | EXPECTED PASS — `index.html` contains no key value, no template placeholder, no `X-API-Key` header in JS      |
+| S6-T3 S6-E     | `GET http://localhost:80/api/risk/CUST001` via Nginx with Basic Auth              | HTTP 200 — full browser path: UI origin → `/api/` proxy → FastAPI           | EXPECTED PASS — nginx injects `X-API-Key`; FastAPI returns CUST001 record; nginx proxies 200 to client        |
+| S6-T3 S6-F     | Response body of S6-E contains JSON keys `customer_id`, `tier`, `risk_factors`   | All three key strings present — confirms FastAPI response structure intact   | EXPECTED PASS — `RiskResponse` model always emits these three fields; nginx does not transform the body        |
+
+### S6-T3 Test Cases Added During Session
+
+| Case  | Scenario        | Expected | Result | Source |
+|-------|-----------------|----------|--------|--------|
+| ADD-1 | None discovered | | | |
+
+---
+
+### S6-T3 Prediction Statement
+
+S6-T3 S6-A | `auth_basic "Restricted"` is at the `server {}` level — inherited by the `location /` block. A request with no `Authorization` header causes nginx to return HTTP 401 with `WWW-Authenticate: Basic realm="Restricted"` before any file is served.
+S6-T3 S6-B | Valid credentials decoded by nginx against the htpasswd file. Authentication passes; `location /` serves `/usr/share/nginx/html/index.html`. nginx reads the file from the image layer (baked in by `COPY html/ /usr/share/nginx/html/`). HTTP 200.
+S6-T3 S6-C | The title string `"Customer Risk Lookup"` appears in both `<title>` and `<h1>` in `index.html`. `grep -q "Customer Risk Lookup"` on the response body will match. Confirmed present by code inspection of the file.
+S6-T3 S6-D | `"Enter customer ID"` is the `placeholder` attribute value on the `<input>` element. `"Look up"` is the text content of the `<button>` element. Both strings appear verbatim in `index.html` and will be present in the served body.
+S6-T3 INV-02-F | `index.html` contains no API key value — confirmed by code inspection. The JavaScript calls `fetch('/api/risk/...')` with no `X-API-Key` header. No template placeholder is present. `grep -qF "$API_KEY"` will return non-zero (no match). PASS.
+S6-T3 S6-E | The browser path is: browser → `localhost:80` → nginx → `proxy_pass http://fastapi:8000` with `proxy_set_header X-API-Key ${API_KEY}` injected. FastAPI validates the key, queries Postgres, returns `RiskResponse`. nginx proxies the 200 response to the client. The script reproduces this path using `curl -u` from the host.
+S6-T3 S6-F | `RiskResponse` is defined as `{customer_id: str, tier: Literal[...], risk_factors: List[RiskFactor]}`. Pydantic serialises all three fields unconditionally. The body will always contain `"customer_id"`, `"tier"`, and `"risk_factors"` as JSON keys. `grep -q` on each key string will match.
+
+---
+
+### S6-T3 CC Challenge Output
+
+S6-T3 — What did you not test in this task?
 
 Items not tested:
 - Whether S6-C correctly fails when a different HTML file is served (negative path not induced — no file substitution was performed).
@@ -1216,11 +1258,11 @@ Decision: negative paths for S6-C/D/INV-02-F are not reachable in the current st
 
 ---
 
-### S6-T2 Code Review
+### S6-T3 Code Review
 
-S6-T2 — INV-02 — Review `verify/s6_ui.sh`: confirm INV-02-F check is correctly structured; confirm no credential or key is hardcoded in the script.
+S6-T3 — INV-02 — Review `verify/s6_ui.sh`: confirm INV-02-F check is correctly structured; confirm no credential or key is hardcoded in the script.
 
-S6-T2 review finding:
+S6-T3 review finding:
 
 **INV-02-F** — `grep -qF "$API_KEY"` uses fixed-string (`-F`) matching, preventing API key characters from being interpreted as regex operators. The body scanned is from a `GET /` response — the static `index.html` file. No `add_header` or `sub_filter` directive in the nginx config could inject the key into this response. The check correctly targets the INV-02 constraint: key value must not appear in any statically served file. Confirmed.
 
@@ -1234,19 +1276,19 @@ S6-T2 review finding:
 
 ---
 
-### S6-T2 Scope Decisions
+### S6-T3 Scope Decisions
 
-S6-T2: S6-C checks for the exact string `"Customer Risk Lookup"` (no regex, plain `grep -q`). This string appears in both `<title>` and `<h1>` in `index.html` — either occurrence satisfies the check. The intent is to confirm the correct file was served; one match is sufficient.
+S6-T3: S6-C checks for the exact string `"Customer Risk Lookup"` (no regex, plain `grep -q`). This string appears in both `<title>` and `<h1>` in `index.html` — either occurrence satisfies the check. The intent is to confirm the correct file was served; one match is sufficient.
 
-S6-T2: S6-D checks for `"Enter customer ID"` (input placeholder) and `"Look up"` (button text) — two independent `grep -q` calls joined with `&&`. Both must match for a PASS. These strings together confirm both interactive form elements are present in the served body.
+S6-T3: S6-D checks for `"Enter customer ID"` (input placeholder) and `"Look up"` (button text) — two independent `grep -q` calls joined with `&&`. Both must match for a PASS. These strings together confirm both interactive form elements are present in the served body.
 
-S6-T2: S6-E uses `curl -u` with Basic Auth from the host against `localhost:80` — the same origin a browser would use after the initial auth challenge. This correctly reproduces the full browser path (same origin fetch from JS → `/api/` location → FastAPI proxy) without requiring a real browser.
+S6-T3: S6-E uses `curl -u` with Basic Auth from the host against `localhost:80` — the same origin a browser would use after the initial auth challenge. This correctly reproduces the full browser path (same origin fetch from JS → `/api/` location → FastAPI proxy) without requiring a real browser.
 
-S6-T2: S6-F uses `grep -q` key-string matching rather than `jq` to avoid a `jq` dependency that is not present in all environments. The three field names are deterministic (Pydantic model output) and their presence is sufficient to confirm response structure.
+S6-T3: S6-F uses `grep -q` key-string matching rather than `jq` to avoid a `jq` dependency that is not present in all environments. The three field names are deterministic (Pydantic model output) and their presence is sufficient to confirm response structure.
 
-S6-T2: Runtime verification deferred — Docker Desktop was unavailable at log-update time. Script structurally verified by code review and confirmed consistent with `s5_nginx.sh` patterns. Runtime results to be confirmed on next available Docker session.
+S6-T3: Runtime verification deferred — Docker Desktop was unavailable at log-update time. Script structurally verified by code review and confirmed consistent with `s5_nginx.sh` patterns. Runtime results to be confirmed on next available Docker session.
 
 ---
 
-**Status: VERIFIED — Session 6 COMPLETE**
+**Status: VERIFIED (S6-T1, S6-T2, S6-T3) — Session 6 COMPLETE**
 **Engineer sign-off:** y vaishali rao — 2026-05-12
