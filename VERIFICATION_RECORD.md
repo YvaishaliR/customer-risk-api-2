@@ -1,7 +1,7 @@
 # VERIFICATION_RECORD — Session 1: Project Scaffold and Environment
 
-**Session:** Session 1 — Project scaffold and environment
-**Date:** 2026-05-11
+**Session:** Session 1 — Project scaffold and environment  
+**Date:** 2026-05-11  
 **Engineer:** y vaishali rao
 
 ---
@@ -164,8 +164,8 @@ S1-T4: `fastapi/Dockerfile` stub modified to install `curl` (deviation from S1-T
 
 # VERIFICATION_RECORD — Session 2: Database Schema and Seed Data
 
-**Session:** Session 2 — Database schema and seed data
-**Date:** 2026-05-11
+**Session:** Session 2 — Database schema and seed data  
+**Date:** 2026-05-11  
 **Engineer:** y vaishali rao
 
 ---
@@ -336,8 +336,8 @@ S2-T4: TIMEOUT set to 90 s (vs 60 s in s1_smoke.sh) because db-init must wait fo
 
 # VERIFICATION_RECORD — Session 3: FastAPI Core: Authentication and Health
 
-**Session:** Session 3 — FastAPI core: authentication and health
-**Date:** 2026-05-11
+**Session:** Session 3 — FastAPI core: authentication and health  
+**Date:** 2026-05-11  
 **Engineer:** y vaishali rao
 
 ---
@@ -492,8 +492,8 @@ S3-T3: Image name resolved dynamically via `docker images --format` after `docke
 
 # VERIFICATION_RECORD — Session 4: FastAPI Core: Risk Lookup Endpoint
 
-**Session:** Session 4 — FastAPI core: risk lookup endpoint
-**Date:** 2026-05-11
+**Session:** Session 4 — FastAPI core: risk lookup endpoint  
+**Date:** 2026-05-11  
 **Engineer:** y vaishali rao
 
 ---
@@ -753,8 +753,8 @@ S4-T2: `response_model=RiskResponse` on the route decorator causes Pydantic to v
 
 # VERIFICATION_RECORD — Session 5: Nginx: Proxy, Key Injection, and Basic Auth
 
-**Session:** Session 5 — Nginx: proxy, key injection, and Basic Auth
-**Date:** 2026-05-11
+**Session:** Session 5 — Nginx: proxy, key injection, and Basic Auth  
+**Date:** 2026-05-11  
 **Engineer:** y vaishali rao
 
 ---
@@ -1078,8 +1078,8 @@ S5-T4: Runtime verification deferred — Docker Desktop was unavailable at log-u
 
 # VERIFICATION_RECORD — Session 6: Browser UI
 
-**Session:** Session 6 — Browser UI
-**Date:** 2026-05-12
+**Session:** Session 6 — Browser UI  
+**Date:** 2026-05-12  
 **Engineer:** y vaishali rao
 
 ---
