@@ -160,7 +160,6 @@ S1-T4: `fastapi/Dockerfile` stub modified to install `curl` (deviation from S1-T
 **Engineer sign-off:** y vaishali rao — 2026-05-11
 
 ---
----
 
 # VERIFICATION_RECORD — Session 2: Database Schema and Seed Data
 
@@ -332,7 +331,6 @@ S2-T4: TIMEOUT set to 90 s (vs 60 s in s1_smoke.sh) because db-init must wait fo
 **Engineer sign-off:** y vaishali rao — 2026-05-11
 
 ---
----
 
 # VERIFICATION_RECORD — Session 3: FastAPI Core: Authentication and Health
 
@@ -487,7 +485,6 @@ S3-T3: Image name resolved dynamically via `docker images --format` after `docke
 **Status: VERIFIED — Session 3 COMPLETE**  
 **Engineer sign-off:** y vaishali rao — 2026-05-11
 
----
 ---
 
 # VERIFICATION_RECORD — Session 4: FastAPI Core: Risk Lookup Endpoint
@@ -748,7 +745,6 @@ S4-T2: Two separate `cursor()` / `try/finally / cur.close()` blocks used (one fo
 
 S4-T2: `response_model=RiskResponse` on the route decorator causes Pydantic to validate the returned object before serialisation. Any tier value that somehow bypassed the DB CHECK constraint would be caught here and result in a 500 (unhandled `ValidationError`). This is a defence-in-depth layer, not a primary invariant enforcement point.
 
----
 ---
 
 # VERIFICATION_RECORD — Session 5: Nginx: Proxy, Key Injection, and Basic Auth
@@ -1074,7 +1070,6 @@ S5-T4: Runtime verification deferred — Docker Desktop was unavailable at log-u
 **Engineer sign-off:** y vaishali rao — 2026-05-12
 
 ---
----
 
 # VERIFICATION_RECORD — Session 6: Browser UI
 
@@ -1298,16 +1293,15 @@ S6-T3: Runtime verification deferred — Docker Desktop was unavailable at log-u
 
 ---
 
-**Status: VERIFIED (S6-T1, S6-T2, S6-T3) — Session 6 COMPLETE**
+**Status: VERIFIED (S6-T1, S6-T2, S6-T3) — Session 6 COMPLETE**  
 **Engineer sign-off:** y vaishali rao — 2026-05-12
 
----
 ---
 
 # VERIFICATION_RECORD — Session 7: End-to-End Invariant Verification
 
-**Session:** Session 7 — End-to-end invariant verification
-**Date:** 2026-05-12
+**Session:** Session 7 — End-to-end invariant verification  
+**Date:** 2026-05-12  
 **Engineer:** y vaishali rao
 
 ---
@@ -1396,7 +1390,7 @@ S7-T1: INV-03 uses fastapi's first health log entry with `ExitCode=0` (not `Stat
 
 ---
 
-**Status: VERIFIED (S7-T1) — Session 7 IN PROGRESS**
+**Status: VERIFIED (S7-T1) — Session 7 IN PROGRESS**  
 **Engineer sign-off:** y vaishali rao — 2026-05-12
 
 ---
@@ -1475,7 +1469,7 @@ S7-T2: `api_get()` helper discards response body (`-o /dev/null`) and exit code 
 
 ---
 
-**Status: VERIFIED (S7-T1, S7-T2 code review) — Session 7 IN PROGRESS**
+**Status: VERIFIED (S7-T1, S7-T2 code review) — Session 7 IN PROGRESS**  
 **Engineer sign-off:** y vaishali rao — 2026-05-12
 
 ---
@@ -1559,7 +1553,7 @@ S7-T3: `docker compose logs` is captured after all requests have been made, ensu
 
 ---
 
-**Status: VERIFIED (S7-T1, S7-T2 code review, S7-T3 code review) — Session 7 IN PROGRESS**
+**Status: VERIFIED (S7-T1, S7-T2 code review, S7-T3 code review) — Session 7 IN PROGRESS**  
 **Engineer sign-off:** y vaishali rao — 2026-05-12
 
 ---
@@ -1645,7 +1639,7 @@ S7-T4: The API loop runs 9 separate HTTP requests sequentially. No parallelism �
 
 ---
 
-**Status: VERIFIED (S7-T1, S7-T2 code review, S7-T3 code review, S7-T4 code review) — Session 7 IN PROGRESS**
+**Status: VERIFIED (S7-T1, S7-T2 code review, S7-T3 code review, S7-T4 code review) — Session 7 IN PROGRESS**  
 **Engineer sign-off:** y vaishali rao — 2026-05-12
 
 ---
@@ -1720,5 +1714,5 @@ S7-T5: The divider line `"======================================================
 
 ---
 
-**Status: COMPLETE — all S7 tasks verified (S7-T1 runtime; S7-T2 through S7-T5 code review)**
+**Status: COMPLETE — all S7 tasks verified (S7-T1 runtime; S7-T2 through S7-T5 code review)**  
 **Engineer sign-off:** y vaishali rao — 2026-05-12

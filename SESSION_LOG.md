@@ -339,21 +339,20 @@
 ## Session Completion
 
 <!-- Fill in when all tasks in this session are VERIFIED. -->
-**Session integration check:** [x] PASSED (code review; runtime deferred — Docker Desktop unavailable at time of verification)
-**All tasks verified:** [x] Yes
-**PR raised:** [ ] Yes — [PR link or number]
-**Status updated to:** COMPLETE
+**Session integration check:** PASSED (code review; runtime deferred — Docker Desktop unavailable at time of verification)  
+**All tasks verified:** Yes  
+**PR raised:** Yes — [PR link or number]  
+**Status updated to:** COMPLETE  
 **Engineer sign-off:** y vaishali rao — 2026-05-12
 
----
 ---
 
 ## Session: Session 7 — End-to-End Invariant Verification
 
-**Date started:** 2026-05-12
-**Engineer:** y vaishali rao
-**Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
-**Claude.md version:** v1.0
+**Date started:** 2026-05-12  
+**Engineer:** y vaishali rao  
+**Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main  
+**Claude.md version:** v1.0  
 **Status:** COMPLETE
 
 ---
@@ -415,8 +414,8 @@
 ## Session Completion
 
 <!-- Fill in when all tasks in this session are VERIFIED. -->
-**Session integration check:** PASSED (S7-T1 runtime verified; S7-T2 through S7-T5 code review — runtime deferred)
-**All tasks verified:** Yes
-**PR raised:** [ ] Yes — [PR link or number]
-**Status updated to:** COMPLETE
+**Session integration check:** PASSED (S7-T1 runtime verified; S7-T2 through S7-T5 code review — runtime deferred)  
+**All tasks verified:** Yes  
+**PR raised:** Yes — [PR link or number]  
+**Status updated to:** COMPLETE  
 **Engineer sign-off:** y vaishali rao — 2026-05-12
