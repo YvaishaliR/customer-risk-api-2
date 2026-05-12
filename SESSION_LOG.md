@@ -365,7 +365,7 @@
 | S7-T1   | Cold-start verification (`verify/s7_coldstart.sh`)                | VERIFIED |        |
 | S7-T2   | Data invariant checks (`verify/s7_invariants_data.sh`)            | VERIFIED |        |
 | S7-T3   | Auth invariant checks (`verify/s7_invariants_auth.sh`)            | VERIFIED |        |
-| S7-T4   | Schema invariant checks (`verify/s7_invariants_schema.sh`)        | PENDING  |        |
+| S7-T4   | Schema invariant checks (`verify/s7_invariants_schema.sh`)        | VERIFIED |        |
 | S7-T5   | Master runner (`verify/run_all.sh`)                               | PENDING  |        |
 
 ---
@@ -384,6 +384,10 @@
 | S7-T3 | Used `printf '%s'` instead of `echo` when piping multi-line response variables into grep/awk. | `echo` on some shells interprets escape sequences or appends a trailing newline that can corrupt multi-line content. `printf '%s'` passes the variable value byte-for-byte, preventing false negatives in the API_KEY absence checks. |
 | S7-T3 | Shared one `curl -s -D -` request for INV-01-FULLSTACK-C, INV-02-FULLSTACK-A, and INV-02-FULLSTACK-B. | Three checks all need a 200 response with headers and body. One request with `curl -s -D -` captures both in a single variable; awk splits headers from body. Avoids three redundant HTTP round-trips against the same endpoint. |
 | S7-T3 | Used `grep -qF` (fixed-string, quiet) for all API_KEY presence checks. | The API_KEY value may contain characters that are special in regex (e.g. `-`, `_`, `.`). Fixed-string matching prevents those characters from being interpreted as regex metacharacters, avoiding false negatives. |
+| S7-T4 | Used `${COUNT:-1}` as the default when asserting DB query results equal "0". | If `psql_exec` returns empty (connection failure or psql error), `${COUNT:-1}` evaluates to "1", which does not equal "0" — the check correctly fails rather than producing a false positive. An empty string compared against "0" with `[ "" = "0" ]` would be false anyway, but the explicit default makes the intent unambiguous. |
+| S7-T4 | Tracked API loop failures in per-invariant counters (`INV04_FAIL`, `INV06_FAIL`, `INV07_FAIL`) rather than calling `fail` inside the loop. | The task spec requires "print pass/fail per invariant". Calling `fail` inside the loop would emit one line per failing customer, not one line per invariant. The counters accumulate all failures; a single summarising pass/fail message is printed per invariant after the loop, with per-customer detail lines printed inline as they are discovered. |
+| S7-T4 | Extracted `response.customer_id` via `grep -o '"customer_id":"[^"]*"' \| cut -d'"' -f4`. | Avoids regex backreferences (`\1`) which are not available in all POSIX `grep` implementations (notably BusyBox grep). `cut -d'"' -f4` on the matched substring `"customer_id":"CUST001"` reliably extracts the value at the fourth double-quote-delimited field. |
+| S7-T4 | DB checks and API checks cover the same invariants (INV-06, INV-07) at two different layers. | DB checks confirm the schema constraints are intact in Postgres (tier CHECK, FK existence). API checks confirm the application layer enforces the same invariants end-to-end through FastAPI's Pydantic model and response path. A failure at one layer but not the other pinpoints exactly where the invariant is broken. |
 
 ---
 

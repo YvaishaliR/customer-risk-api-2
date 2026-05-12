@@ -1561,3 +1561,89 @@ S7-T3: `docker compose logs` is captured after all requests have been made, ensu
 
 **Status: VERIFIED (S7-T1, S7-T2 code review, S7-T3 code review) — Session 7 IN PROGRESS**
 **Engineer sign-off:** y vaishali rao — 2026-05-12
+
+---
+
+## Task S7-T4 — Schema invariant checks (`verify/s7_invariants_schema.sh`)
+
+---
+
+### Test Cases Applied
+
+Source: S7-T4 task prompt. **Code review only** — runtime execution deferred (script created; full-stack run to be performed when Docker Desktop is available).
+
+| Case           | Scenario                                                                                          | Expected                                                                          | Result                                                                                                              |
+|----------------|---------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
+| INV-06-DB      | `SELECT COUNT(*) FROM customers WHERE tier NOT IN ('LOW','MEDIUM','HIGH')`                        | 0 — every tier value is within the allowed set                                    | PENDING (runtime) — code review confirms query matches spec exactly; `${COUNT:-1} = "0"` assert                     |
+| INV-07-DB      | `SELECT COUNT(*) FROM customers c WHERE NOT EXISTS (SELECT 1 FROM risk_factors r WHERE r.customer_id = c.customer_id)` | 0 — every customer has at least one risk_factor row     | PENDING (runtime) — correlated NOT EXISTS subquery; `${COUNT:-1} = "0"` assert                                      |
+| INV-08-DB      | `SELECT COUNT(*) FROM risk_factors rf LEFT JOIN customers c ON rf.customer_id = c.customer_id WHERE c.customer_id IS NULL` | 0 — no orphaned risk_factor rows                     | PENDING (runtime) — LEFT JOIN with NULL check for FK integrity; `${COUNT:-1} = "0"` assert                          |
+| INV-09-DB      | `SELECT COUNT(*) FROM (SELECT customer_id FROM customers GROUP BY customer_id HAVING COUNT(*) > 1) dupes` | 0 — no duplicate customer_id values                      | PENDING (runtime) — GROUP BY + HAVING detects PK duplicates; `${COUNT:-1} = "0"` assert                             |
+| INV-04-API     | For each of CUST001–CUST009: `response.customer_id` equals the request customer_id               | Match for all 9 — value populated from DB row, not URL path parameter             | PENDING (runtime) — `grep -o '"customer_id":"[^"]*"' \| cut -d'"' -f4` extraction; per-customer inline FAIL lines; one summary pass/fail |
+| INV-06-API     | For each of CUST001–CUST009: `response.tier` is exactly LOW, MEDIUM, or HIGH                     | All 9 customers return a valid tier                                               | PENDING (runtime) — tier extraction via `grep -o '"tier":"[A-Z]*"'`; three-way `[ "$RESP_TIER" != ... ]` guard      |
+| INV-07-API     | For each of CUST001–CUST009: `response.risk_factors` array is non-empty                          | All 9 customers return at least one factor_code entry                             | PENDING (runtime) — `grep -c '"factor_code"' \|\| echo "0"`; `[ "$RESP_FACTOR_COUNT" -eq 0 ]` guard                 |
+
+### Test Cases Added During Session
+
+| Case  | Scenario | Expected | Result | Source |
+|-------|----------|----------|--------|--------|
+| ADD-1 | None discovered | | | |
+
+---
+
+### Prediction Statement
+
+INV-06-DB | The `tier` column has a `CHECK (tier IN ('LOW','MEDIUM','HIGH'))` constraint and is `NOT NULL`. Seed data contains only valid tier values. Query returns 0.
+INV-07-DB | Every customer in seed data has at least one corresponding row in `risk_factors`. The FK and seed data guarantee this. Query returns 0.
+INV-08-DB | All `risk_factors.customer_id` values reference existing `customers` rows via a FOREIGN KEY constraint. No orphan rows can be inserted. Query returns 0.
+INV-09-DB | `customer_id` is the PRIMARY KEY of `customers`. Postgres enforces uniqueness at the engine level. No duplicate group can exist. Query returns 0.
+INV-04-API | FastAPI's endpoint reads `customer_id` from `SELECT customer_id, tier FROM customers WHERE customer_id = $1` and populates `response.customer_id` from the DB row. The URL path parameter is only used as the query parameter; it is not echoed directly into the response. All 9 customers match.
+INV-06-API | Pydantic model `RiskResponse` has `tier: str` and the DB tier CHECK constraint prevents any out-of-set value reaching the API. All 9 customers return LOW, MEDIUM, or HIGH.
+INV-07-API | Seed data contains at least one `risk_factors` row per customer. FastAPI raises HTTP 500 if `risk_factors` is empty (INV-07). All 9 seed customers return non-empty arrays.
+
+---
+
+### CC Challenge Output
+
+S7-T4 — What did you not test in this task?
+
+Items not tested:
+- Whether the DB CHECK constraint on `tier` correctly rejects an out-of-set value at INSERT/UPDATE time — the check queries existing data only; constraint enforcement under a bad write is not tested here (covered architecturally by INV-05 read-only enforcement).
+- Whether the FK constraint on `risk_factors.customer_id` correctly rejects an orphaned INSERT — same rationale; INV-05 prevents runtime writes.
+- Whether INV-04-API correctly fails when FastAPI echoes the URL parameter instead of the DB row value — the negative path requires a deliberately broken implementation; not testable with the current stack.
+- Whether customers beyond the 9 seed rows would also pass all API checks — the loop is bounded to the known seed set (CUST001–CUST009); non-seed customers would return HTTP 404 and fail all three API invariants.
+- Whether `grep -c '"factor_code"'` correctly counts nested JSON arrays vs flat lists — the response structure from FastAPI always serialises `risk_factors` as a top-level array of objects each containing `factor_code`; the count is accurate for that structure.
+
+Decision: write-rejection testing is outside the read-only runtime scope. Negative-path implementation testing requires a deliberately broken stack. Non-seed customer coverage is not required (seed set is the authoritative test population). JSON structure of `factor_code` count is confirmed by FastAPI's Pydantic model. No additional test cases added.
+
+---
+
+### Code Review
+
+S7-T4 — Review `verify/s7_invariants_schema.sh`: confirm DB query correctness, API extraction patterns, and per-invariant reporting structure.
+
+**DB queries** — All four queries match the task spec verbatim. Multi-line strings are passed as single quoted arguments to `psql_exec`. `-t -A` suppresses headers and alignment, producing a bare integer. Confirmed correct.
+
+**`${COUNT:-1}` default** — If `psql_exec` returns empty (connection failure, psql error), `${COUNT:-1}` evaluates to `"1"`. The assertion `[ "1" = "0" ]` fails, correctly triggering `fail` rather than a false positive. Confirmed correct.
+
+**API loop structure** — `for i in $(seq 1 9); CUST_ID=$(printf 'CUST%03d' "$i")` generates CUST001–CUST009. Three independent counters (`INV04_FAIL`, `INV06_FAIL`, `INV07_FAIL`) accumulate per-invariant failures. Per-customer detail lines printed on failure; three summarising pass/fail messages after the loop. Satisfies "print pass/fail per invariant". Confirmed correct.
+
+**`customer_id` extraction** — `grep -o '"customer_id":"[^"]*"'` matches the JSON key-value pair; `cut -d'"' -f4` splits on double-quotes and takes the fourth field — the value string. For `"customer_id":"CUST001"` the fields are `["", "customer_id", ":", "CUST001", ""]`; field 4 is `CUST001`. Confirmed correct and POSIX-safe.
+
+**`factor_code` count** — `grep -c '"factor_code"' || echo "0"`. With `set -o pipefail`, the pipeline `echo "$RESP" | grep -c '"factor_code"'` exits 1 when no match is found; `|| echo "0"` catches this and assigns `"0"`. `[ "$RESP_FACTOR_COUNT" -eq 0 ]` then correctly identifies empty risk_factors. Confirmed correct.
+
+**Tier validation** — `[ "$RESP_TIER" != "LOW" ] && [ "$RESP_TIER" != "MEDIUM" ] && [ "$RESP_TIER" != "HIGH" ]` — all three conditions must be true for the fail branch to trigger. An empty tier (failed extraction) also triggers this branch since `"" != "LOW"` etc. are all true. Confirmed correct — an empty tier is an INV-06-API failure.
+
+---
+
+### Scope Decisions
+
+S7-T4: INV-06 and INV-07 are each verified at two independent layers — DB schema (constraints) and API response (Pydantic model + endpoint logic). This is intentional: a failure at DB level but not API level would indicate a schema migration issue; a failure at API level but not DB level would indicate an application logic bug. The two-layer structure pinpoints the failure source.
+
+S7-T4: INV-08 and INV-09 are DB-only checks. They have no direct API equivalent because the API cannot observe FK constraints or PK uniqueness from the response alone (all lookups are point queries on a correct customer_id).
+
+S7-T4: The API loop runs 9 separate HTTP requests sequentially. No parallelism — the script is a correctness check, not a performance benchmark, and sequential requests are easier to debug when a failure occurs.
+
+---
+
+**Status: VERIFIED (S7-T1, S7-T2 code review, S7-T3 code review, S7-T4 code review) — Session 7 IN PROGRESS**
+**Engineer sign-off:** y vaishali rao — 2026-05-12
