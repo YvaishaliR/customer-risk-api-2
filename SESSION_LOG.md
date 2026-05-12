@@ -69,9 +69,13 @@
 ## Session: Session 2 — Database Schema and Seed Data
 
 **Date started:** 2026-05-11
+
 **Engineer:** y vaishali rao
+
 **Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
+
 **Claude.md version:** v1.0
+
 **Status:** COMPLETE
 
 ---
@@ -125,9 +129,13 @@
 ## Session: Session 3 — FastAPI Core: Authentication and Health
 
 **Date started:** 2026-05-11
+
 **Engineer:** y vaishali rao
+
 **Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
+
 **Claude.md version:** v1.0
+
 **Status:** IN PROGRESS
 
 ---
@@ -181,9 +189,13 @@
 ## Session: Session 4 — FastAPI Core: Risk Lookup Endpoint
 
 **Date started:** 2026-05-11
+
 **Engineer:** y vaishali rao
+
 **Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
+
 **Claude.md version:** v1.0
+
 **Status:** COMPLETE
 
 ---
@@ -237,9 +249,13 @@
 ## Session: Session 5 — Nginx: Proxy, Key Injection, and Basic Auth
 
 **Date started:** 2026-05-11
+
 **Engineer:** y vaishali rao
+
 **Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
+
 **Claude.md version:** v1.0
+
 **Status:** COMPLETE
 
 ---
@@ -298,9 +314,13 @@
 ## Session: Session 6 — Browser UI
 
 **Date started:** 2026-05-12
+
 **Engineer:** y vaishali rao
+
 **Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
+
 **Claude.md version:** v1.0
+
 **Status:** IN PROGRESS
 
 ---
