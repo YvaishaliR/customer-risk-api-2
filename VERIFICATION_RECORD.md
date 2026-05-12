@@ -1091,6 +1091,9 @@ Source: S6-T1 task prompt — all test cases stated in the session.
 | S6-T1 TC-2  | Non-existent customer ID entered                  | "Customer not found" message                                         | PASS — `resp.status === 404` branch calls `showError('Customer not found')`                              |
 | S6-T1 TC-3  | Page loaded with no interaction                   | Empty results area; input field focused                              | PASS — `#results` div is empty in HTML; `autofocus` attribute on input focuses it immediately on load     |
 | S6-T1 TC-4  | Enter key pressed in input field                  | Triggers lookup identically to button click                          | PASS — `keydown` listener checks `e.key === 'Enter'` and calls `lookup()`                                |
+| S6-T1 TC-5  | `docker compose build nginx`                       | Image builds cleanly; exit 0                                         | EXPECTED PASS — all four `COPY` sources exist in build context; Dockerfile syntax valid; runtime deferred |
+| S6-T1 TC-6  | `GET http://localhost:80/` with Basic Auth         | Returns `index.html` content; HTTP 200                               | EXPECTED PASS — `location /` block: `root /usr/share/nginx/html; index index.html`; file present in image; runtime deferred |
+| S6-T1 TC-7  | `GET http://localhost:80/index.html` with Basic Auth | Returns `index.html` content; HTTP 200                             | EXPECTED PASS — `try_files $uri` resolves `/usr/share/nginx/html/index.html` directly; runtime deferred  |
 
 ### Test Cases Added During Session
 
@@ -1106,6 +1109,9 @@ S6-T1 TC-1 | A valid customer ID (e.g., `CUST001`) fetches `GET /api/risk/CUST00
 S6-T1 TC-2 | A non-existent ID returns HTTP 404 from FastAPI, propagated unchanged by nginx. The `resp.status === 404` branch calls `showError('Customer not found')`, rendering `<p class="error">Customer not found</p>`.
 S6-T1 TC-3 | On initial page load, `#results` contains no child elements (it is an empty `<div>` in the HTML). The `autofocus` attribute on the input element causes the browser to move keyboard focus to the field immediately, consistent with the lookup-centric purpose of the page.
 S6-T1 TC-4 | The `keydown` event listener on the input checks `e.key === 'Enter'` and calls `lookup()` directly — the same function triggered by the button's `click` listener. Behaviour is identical: results cleared, button disabled, fetch dispatched, button re-enabled in `finally`.
+S6-T1 TC-5 | `nginx/Dockerfile` now has four `COPY` instructions: `nginx.conf.template`, `nginx.conf`, `entrypoint.sh`, and `html/`. All four source paths exist in the `nginx/` build context. Dockerfile syntax is valid — `docker compose build nginx` will exit 0.
+S6-T1 TC-6 | With Basic Auth satisfied, nginx resolves `GET /` using the `index` directive (`index index.html`) in `location /`. The file `/usr/share/nginx/html/index.html` was baked in by `COPY html/ /usr/share/nginx/html/`. nginx serves the file with HTTP 200 and `Content-Type: text/html`.
+S6-T1 TC-7 | `GET /index.html` causes nginx to evaluate `try_files $uri` first. `$uri` = `/index.html`; nginx checks `/usr/share/nginx/html/index.html` — it exists. The file is served directly without falling through to the `$uri/` or `/index.html` fallback. HTTP 200.
 
 ---
 
@@ -1152,7 +1158,9 @@ S6-T1: `.then`/`.catch`/`.finally` promise chain used instead of `async`/`await`
 
 S6-T1: `results.innerHTML = ''` (clear) placed at the top of `lookup()`, before the empty-ID early return. This ensures the results area is always cleared on interaction, even if the input is blank — consistent with "clear the results area before each new request."
 
-S6-T1: The file is served from `/usr/share/nginx/html/` via the nginx `location /` block with `try_files $uri $uri/ /index.html`. The file path `nginx/html/index.html` maps to this mount point via the `COPY` instruction in the nginx Dockerfile (to be added in S6-T2 scope if not already present) or via a volume mount in `docker-compose.yml`.
+S6-T1: The file is served from `/usr/share/nginx/html/` via the nginx `location /` block with `try_files $uri $uri/ /index.html`. `COPY html/ /usr/share/nginx/html/` was added to `nginx/Dockerfile` (after `COPY entrypoint.sh`, before `RUN chmod +x`) to bake `index.html` into the image. Layer order: base → tools → config files → static assets → chmod → ENTRYPOINT. This is a stable caching arrangement — config and asset layers do not bust each other on independent changes.
+
+S6-T1: `nginx/Dockerfile` previously covered in S5-T2; the `COPY html/` addition is recorded here as it is driven by the S6-T1 UI deliverable. No other Dockerfile change was made.
 
 ---
 
