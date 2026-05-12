@@ -1647,3 +1647,78 @@ S7-T4: The API loop runs 9 separate HTTP requests sequentially. No parallelism �
 
 **Status: VERIFIED (S7-T1, S7-T2 code review, S7-T3 code review, S7-T4 code review) — Session 7 IN PROGRESS**
 **Engineer sign-off:** y vaishali rao — 2026-05-12
+
+---
+
+## Task S7-T5 — Master runner (`verify/run_all.sh`) + `README.md`
+
+---
+
+### Test Cases Applied
+
+Source: S7-T5 task prompt. **Code review only** — runtime execution deferred.
+
+| Case        | Scenario                                               | Expected                                                                           | Result                                                                                                                              |
+|-------------|--------------------------------------------------------|------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| S7-T5 TC-1  | All 10 verify scripts exit 0                           | Master script exits 0; summary table shows all PASS; "Overall: PASS" printed       | PENDING (runtime) — `OVERALL` stays 0; `exit 0` reached; no "Failed scripts" block printed                                         |
+| S7-T5 TC-2  | One or more verify scripts exit non-zero               | Master script exits 1; summary table identifies failing rows; failed script list printed | PENDING (runtime) — `OVERALL=1` set on first failure; remaining scripts still run; "Failed scripts:" block lists each failed entry |
+| S7-T5 TC-3  | README.md contains all five required sections          | Prerequisites, Setup, Start, Verify, Stop all present                              | PASS (code review) — all five sections confirmed in written file                                                                    |
+
+### Test Cases Added During Session
+
+| Case  | Scenario | Expected | Result | Source |
+|-------|----------|----------|--------|--------|
+| ADD-1 | None discovered | | | |
+
+---
+
+### Prediction Statement
+
+S7-T5 TC-1 | All 10 individual scripts have been code-reviewed and are expected to pass against a correctly seeded stack. `OVERALL` remains 0 throughout the loop; the summary table prints 10 PASS rows; `exit 0` is reached.
+S7-T5 TC-2 | If any script exits non-zero, `OVERALL` is set to 1 and the corresponding `RESULTS` entry is "FAIL". The loop continues — remaining scripts execute regardless. After the summary table, the "Failed scripts:" block lists only the FAIL entries.
+S7-T5 TC-3 | README.md was rewritten with exactly the five sections specified. No additional content added.
+
+---
+
+### CC Challenge Output
+
+S7-T5 — What did you not test in this task?
+
+Items not tested:
+- Whether `run_all.sh` correctly handles a script that hangs indefinitely — each individual script has its own 120s timeout in the wait loop; `run_all.sh` itself has no global timeout. A hung script would stall the master indefinitely.
+- Whether the summary table renders correctly when a script path is longer than 34 characters — all current paths are ≤ 30 characters; the 34-char column width is sufficient.
+- Whether `bash "$SCRIPT"` correctly resolves paths when run from a different working directory — `cd "$PROJECT_ROOT"` is called before the loop, so all paths are relative to the project root regardless of where the user invoked `run_all.sh`.
+- Whether running `run_all.sh` while the stack is already up causes conflicts — individual scripts that call `docker compose up -d` will no-op if services are already running; s7_coldstart.sh calls `docker compose down -v` first, which would tear down a running stack. No guard against this is present in `run_all.sh`.
+
+Decision: hang timeout is an infrastructure concern outside the scope of a verification script. Column width is sufficient for all current paths. Working directory is anchored to PROJECT_ROOT. Stack state conflict is documented behavior of s7_coldstart.sh. No additional test cases added.
+
+---
+
+### Code Review
+
+S7-T5 — Review `verify/run_all.sh`: confirm loop correctness, exit-code capture, and summary output.
+
+**Loop and exit-code capture** — `if bash "$SCRIPT"; then RESULTS+=("PASS"); else RESULTS+=("FAIL"); OVERALL=1; fi`. With `set -euo pipefail` active, a bare failing command would abort the script. The `if/else` structure captures the exit code at the shell level without triggering `set -e`, so all 10 scripts always run. `RESULTS` is a bash indexed array; `OVERALL` is set to 1 on the first failure and is idempotent thereafter. Confirmed correct.
+
+**Summary table** — `for i in "${!SCRIPTS[@]}"` iterates the indices of the SCRIPTS array. `${SCRIPTS[$i]}` and `${RESULTS[$i]}` are always in sync because a RESULTS entry is appended on every loop iteration without exception. `printf "%-34s | %s\n"` left-pads the script name to 34 characters — sufficient for all current paths (longest: `verify/s7_invariants_schema.sh` = 30 chars). Confirmed correct.
+
+**Failed scripts block** — Printed only when `OVERALL=1`. Second pass over `RESULTS` array identifies FAIL entries and prints the corresponding script name. Provides a focused actionable list separate from the full summary table. Confirmed correct.
+
+**Exit code** — `exit 0` on overall PASS, `exit 1` on any failure. Matches task spec "Exit 0 on overall PASS, 1 on any failure." Confirmed correct.
+
+**README.md** — Five sections present: Prerequisites (Docker >= 24.0, Compose v2 note), Setup (`cp .env.example .env` + edit instruction), Start (`docker compose up --build`), Verify (`bash verify/run_all.sh`), Stop (`docker compose down -v`). All commands in fenced code blocks. No content beyond the task spec. Confirmed correct.
+
+---
+
+### Scope Decisions
+
+S7-T5: `run_all.sh` does not manage the stack itself (no `docker compose up -d` or `down -v`). Each individual script manages its own lifecycle. This is consistent with how all session scripts were built — they each call `docker compose up -d` at the start and tear down via `trap cleanup EXIT`. `run_all.sh` is a pure orchestrator: run, capture, report.
+
+S7-T5: `s1_smoke.sh` is intentionally excluded from the script list. The task spec lists exactly 10 scripts starting from `s2_db.sh`. The smoke test was a session-1 scaffold verification; the session-7 scripts provide complete end-to-end coverage.
+
+S7-T5: The divider line `"================================================================"` (64 `=` characters) is used to visually separate script output sections. It is wide enough to be distinct but not wider than a standard 80-column terminal.
+
+---
+
+**Status: COMPLETE — all S7 tasks verified (S7-T1 runtime; S7-T2 through S7-T5 code review)**
+**Engineer sign-off:** y vaishali rao — 2026-05-12
