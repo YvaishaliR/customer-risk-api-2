@@ -375,13 +375,6 @@ Source: EXECUTION_PLAN.md — S3-T1 test cases.
 ---
 
 ### Prediction Statement
-S3-T3 INV-01-A | The `get_api_key` dependency receives `None` for a missing header and raises `HTTPException(401)` before any route handler executes. The script will receive HTTP 401.
-S3-T3 INV-01-B | `"wrong-key" != _API_KEY` is True; `HTTPException(401)` is raised. The script will receive HTTP 401.
-S3-T3 INV-01-C | The correct key passes both the `is None` and `!= _API_KEY` checks; the dependency returns without raising. The `/health` handler executes and returns HTTP 200.
-S3-T3 INV-01-D | The `HTTPException` detail is the fixed string `"Invalid or missing API key"` — no variable substitution. The key string `inv01-test-key-do-not-use` will not appear in the JSON response body.
-S3-T3 INV-02-A | Uvicorn does not copy request headers into response headers. The response headers (`content-type`, `content-length`, `date`, `server`) contain no key string.
-S3-T3 INV-02-B | No `logger`, `print`, or uvicorn access-log format includes the `X-API-Key` header value. Log lines show only method, path, and status code. The key string will not appear.
-
 | Case | Prediction |
 |------|------------|
 | S3-T1 TC-1 | `GET /health` will return HTTP 200 with body `{"status":"ok"}`. The endpoint is registered on the `FastAPI()` instance and FastAPI serializes the returned dict to JSON automatically. |
@@ -391,6 +384,15 @@ S3-T3 INV-02-B | No `logger`, `print`, or uvicorn access-log format includes the
 | S3-T2 TC-3 | `GET /health` with the correct key value will return HTTP 200. The dependency returns without raising; the route handler executes and returns `{"status": "ok"}`. |
 | S3-T2 TC-4 | The 401 response body will be `{"detail":"Invalid or missing API key"}` — a fixed string that contains no key value. |
 | S3-T2 TC-5 | FastAPI logs will contain only request lines (method, path, status code) and the startup message. The key value (`inv01-test-key-do-not-use`) will not appear in any log line — no header logging, no key variable logging. |
+
+| Case | Prediction |
+|------|------------|
+| S3-T3 INV-01-A | The `get_api_key` dependency receives `None` for a missing header and raises `HTTPException(401)` before any route handler executes. The script will receive HTTP 401. |
+| S3-T3 INV-01-B | `"wrong-key" != _API_KEY` is True; `HTTPException(401)` is raised. The script will receive HTTP 401. |
+| S3-T3 INV-01-C | The correct key passes both the `is None` and `!= _API_KEY` checks; the dependency returns without raising. The `/health` handler executes and returns HTTP 200. |
+| S3-T3 INV-01-D | The `HTTPException` detail is the fixed string `"Invalid or missing API key"` — no variable substitution. The key string `inv01-test-key-do-not-use` will not appear in the JSON response body. |
+| S3-T3 INV-02-A | Uvicorn does not copy request headers into response headers. The response headers (`content-type`, `content-length`, `date`, `server`) contain no key string. |
+| S3-T3 INV-02-B | No `logger`, `print`, or uvicorn access-log format includes the `X-API-Key` header value. Log lines show only method, path, and status code. The key string will not appear. |
 
 ---
 
@@ -1342,10 +1344,12 @@ Overall: PASS
 
 ### Prediction Statement
 
-S7-T1 TC-1 | All images are cached from prior sessions. `docker compose up -d --build` rebuilds from cache (no layer changes). The full startup chain (postgres → db-init → fastapi → nginx) completes within 24s. Poll loop detects all conditions satisfied at the first check (ELAPSED=0 after the initial `docker compose up -d` handoff waits for `depends_on` conditions internally).
-S7-T1 TC-2 | Stack fully operational after cold start. nginx serves `index.html` with HTTP 200 to an authenticated GET request.
-S7-T1 TC-3 | FastAPI has established a DB connection during lifespan startup. CUST001 is in the seeded database. The request returns a valid `RiskResponse` with tier=LOW.
-S7-T1 INV-03 | db-init exits 0 before Docker starts fastapi (enforced by `depends_on: condition: service_completed_successfully`). fastapi health check passes ~10s after fastapi starts. db-init.FinishedAt is earlier than fastapi's first healthy timestamp.
+| Case | Prediction |
+|------|------------|
+| S7-T1 TC-1 | All images are cached from prior sessions. `docker compose up -d --build` rebuilds from cache (no layer changes). The full startup chain (postgres → db-init → fastapi → nginx) completes within 24s. Poll loop detects all conditions satisfied at the first check (ELAPSED=0 after the initial `docker compose up -d` handoff waits for `depends_on` conditions internally). |
+| S7-T1 TC-2 | Stack fully operational after cold start. nginx serves `index.html` with HTTP 200 to an authenticated GET request. |
+| S7-T1 TC-3 | FastAPI has established a DB connection during lifespan startup. CUST001 is in the seeded database. The request returns a valid `RiskResponse` with tier=LOW. |
+| S7-T1 INV-03 | db-init exits 0 before Docker starts fastapi (enforced by `depends_on: condition: service_completed_successfully`). fastapi health check passes ~10s after fastapi starts. db-init.FinishedAt is earlier than fastapi's first healthy timestamp. |
 
 ---
 
@@ -1421,11 +1425,13 @@ Source: S7-T2 task prompt. **Code review only** — runtime execution deferred (
 
 ### Prediction Statement
 
-S7-T2 INV-05-1 | Both tables were seeded by db-init. `psql_exec` returns MD5 of a non-empty `string_agg` — a 32-character hex string. Neither table is empty at any point during normal API operation.
-S7-T2 INV-05-2 | FastAPI's `/api/risk/{customer_id}` endpoint executes only SELECT queries (read-only by design, INV-05). 50 requests across 9 customers make no writes. Checksums are unchanged.
-S7-T2 INV-10-1 | CUST001 is seeded with tier=LOW. The API returns `"tier":"LOW"`. `ORIG_TIER` captures `LOW`.
-S7-T2 INV-10-2 | FastAPI queries Postgres on every request (no application-level cache, INV-10). After `UPDATE customers SET tier='HIGH'`, the next API call executes a fresh SELECT and returns `HIGH`.
-S7-T2 INV-10-3 | After INV-10 assertion, `UPDATE customers SET tier='LOW' WHERE customer_id='CUST001'` restores the seed state. Subsequent requests observe the restored value.
+| Case | Prediction |
+|------|------------|
+| S7-T2 INV-05-1 | Both tables were seeded by db-init. `psql_exec` returns MD5 of a non-empty `string_agg` — a 32-character hex string. Neither table is empty at any point during normal API operation. |
+| S7-T2 INV-05-2 | FastAPI's `/api/risk/{customer_id}` endpoint executes only SELECT queries (read-only by design, INV-05). 50 requests across 9 customers make no writes. Checksums are unchanged. |
+| S7-T2 INV-10-1 | CUST001 is seeded with tier=LOW. The API returns `"tier":"LOW"`. `ORIG_TIER` captures `LOW`. |
+| S7-T2 INV-10-2 | FastAPI queries Postgres on every request (no application-level cache, INV-10). After `UPDATE customers SET tier='HIGH'`, the next API call executes a fresh SELECT and returns `HIGH`. |
+| S7-T2 INV-10-3 | After INV-10 assertion, `UPDATE customers SET tier='LOW' WHERE customer_id='CUST001'` restores the seed state. Subsequent requests observe the restored value. |
 
 ---
 
@@ -1502,13 +1508,15 @@ Source: S7-T3 task prompt. **Code review only** — runtime execution deferred (
 
 ### Prediction Statement
 
-INV-01-FULLSTACK-A | Nginx `auth_basic` is applied at the server block level, before any `location` block processing. A request with no `Authorization` header receives HTTP 401 directly from Nginx. FastAPI is never proxied to.
-INV-01-FULLSTACK-B | `proxy_set_header X-API-Key ${API_KEY}` in the nginx config unconditionally sets the header in the upstream (proxied) request, replacing any client-supplied header of the same name. The client's `X-API-Key: wrong-key` is discarded; FastAPI receives the correct injected key and returns HTTP 200.
-INV-01-FULLSTACK-C | Standard authenticated path: Basic Auth passes Nginx, no X-API-Key sent by caller, Nginx injects the correct key, FastAPI validates and returns HTTP 200 with CUST001 risk data.
-INV-02-FULLSTACK-A | `proxy_hide_header X-API-Key` strips the header from FastAPI's upstream response. The injected key is only present in the Nginx→FastAPI leg and never in the Nginx→client response headers.
-INV-02-FULLSTACK-B | FastAPI's `RiskResponse` Pydantic model contains only `customer_id`, `tier`, and `risk_factors`. None of these fields are populated with the API_KEY value.
-INV-02-FULLSTACK-C | The `api_safe` log format contains `$remote_addr`, `$time_local`, `$request`, `$status`, `$body_bytes_sent`, `$http_referer`, `$http_user_agent`. No field captures `$http_x_api_key` or any upstream header value.
-INV-02-FULLSTACK-D | Uvicorn's default access log format is `{method} {path} HTTP/{version} {status_code}` — no request header values are logged.
+| Case | Prediction |
+|------|------------|
+| INV-01-FULLSTACK-A | Nginx `auth_basic` is applied at the server block level, before any `location` block processing. A request with no `Authorization` header receives HTTP 401 directly from Nginx. FastAPI is never proxied to. |
+| INV-01-FULLSTACK-B | `proxy_set_header X-API-Key ${API_KEY}` in the nginx config unconditionally sets the header in the upstream (proxied) request, replacing any client-supplied header of the same name. The client's `X-API-Key: wrong-key` is discarded; FastAPI receives the correct injected key and returns HTTP 200. |
+| INV-01-FULLSTACK-C | Standard authenticated path: Basic Auth passes Nginx, no X-API-Key sent by caller, Nginx injects the correct key, FastAPI validates and returns HTTP 200 with CUST001 risk data. |
+| INV-02-FULLSTACK-A | `proxy_hide_header X-API-Key` strips the header from FastAPI's upstream response. The injected key is only present in the Nginx→FastAPI leg and never in the Nginx→client response headers. |
+| INV-02-FULLSTACK-B | FastAPI's `RiskResponse` Pydantic model contains only `customer_id`, `tier`, and `risk_factors`. None of these fields are populated with the API_KEY value. |
+| INV-02-FULLSTACK-C | The `api_safe` log format contains `$remote_addr`, `$time_local`, `$request`, `$status`, `$body_bytes_sent`, `$http_referer`, `$http_user_agent`. No field captures `$http_x_api_key` or any upstream header value. |
+| INV-02-FULLSTACK-D | Uvicorn's default access log format is `{method} {path} HTTP/{version} {status_code}` — no request header values are logged. |
 
 ---
 
@@ -1586,13 +1594,15 @@ Source: S7-T4 task prompt. **Code review only** — runtime execution deferred (
 
 ### Prediction Statement
 
-INV-06-DB | The `tier` column has a `CHECK (tier IN ('LOW','MEDIUM','HIGH'))` constraint and is `NOT NULL`. Seed data contains only valid tier values. Query returns 0.
-INV-07-DB | Every customer in seed data has at least one corresponding row in `risk_factors`. The FK and seed data guarantee this. Query returns 0.
-INV-08-DB | All `risk_factors.customer_id` values reference existing `customers` rows via a FOREIGN KEY constraint. No orphan rows can be inserted. Query returns 0.
-INV-09-DB | `customer_id` is the PRIMARY KEY of `customers`. Postgres enforces uniqueness at the engine level. No duplicate group can exist. Query returns 0.
-INV-04-API | FastAPI's endpoint reads `customer_id` from `SELECT customer_id, tier FROM customers WHERE customer_id = $1` and populates `response.customer_id` from the DB row. The URL path parameter is only used as the query parameter; it is not echoed directly into the response. All 9 customers match.
-INV-06-API | Pydantic model `RiskResponse` has `tier: str` and the DB tier CHECK constraint prevents any out-of-set value reaching the API. All 9 customers return LOW, MEDIUM, or HIGH.
-INV-07-API | Seed data contains at least one `risk_factors` row per customer. FastAPI raises HTTP 500 if `risk_factors` is empty (INV-07). All 9 seed customers return non-empty arrays.
+| Case | Prediction |
+|------|------------|
+| INV-06-DB | The `tier` column has a `CHECK (tier IN ('LOW','MEDIUM','HIGH'))` constraint and is `NOT NULL`. Seed data contains only valid tier values. Query returns 0. |
+| INV-07-DB | Every customer in seed data has at least one corresponding row in `risk_factors`. The FK and seed data guarantee this. Query returns 0. |
+| INV-08-DB | All `risk_factors.customer_id` values reference existing `customers` rows via a FOREIGN KEY constraint. No orphan rows can be inserted. Query returns 0. |
+| INV-09-DB | `customer_id` is the PRIMARY KEY of `customers`. Postgres enforces uniqueness at the engine level. No duplicate group can exist. Query returns 0. |
+| INV-04-API | FastAPI's endpoint reads `customer_id` from `SELECT customer_id, tier FROM customers WHERE customer_id = $1` and populates `response.customer_id` from the DB row. The URL path parameter is only used as the query parameter; it is not echoed directly into the response. All 9 customers match. |
+| INV-06-API | Pydantic model `RiskResponse` has `tier: str` and the DB tier CHECK constraint prevents any out-of-set value reaching the API. All 9 customers return LOW, MEDIUM, or HIGH. |
+| INV-07-API | Seed data contains at least one `risk_factors` row per customer. FastAPI raises HTTP 500 if `risk_factors` is empty (INV-07). All 9 seed customers return non-empty arrays. |
 
 ---
 
@@ -1668,9 +1678,11 @@ Source: S7-T5 task prompt. **Code review only** — runtime execution deferred.
 
 ### Prediction Statement
 
-S7-T5 TC-1 | All 10 individual scripts have been code-reviewed and are expected to pass against a correctly seeded stack. `OVERALL` remains 0 throughout the loop; the summary table prints 10 PASS rows; `exit 0` is reached.
-S7-T5 TC-2 | If any script exits non-zero, `OVERALL` is set to 1 and the corresponding `RESULTS` entry is "FAIL". The loop continues — remaining scripts execute regardless. After the summary table, the "Failed scripts:" block lists only the FAIL entries.
-S7-T5 TC-3 | README.md was rewritten with exactly the five sections specified. No additional content added.
+| Case | Prediction |
+|------|------------|
+| S7-T5 TC-1 | All 10 individual scripts have been code-reviewed and are expected to pass against a correctly seeded stack. `OVERALL` remains 0 throughout the loop; the summary table prints 10 PASS rows; `exit 0` is reached. |
+| S7-T5 TC-2 | If any script exits non-zero, `OVERALL` is set to 1 and the corresponding `RESULTS` entry is "FAIL". The loop continues — remaining scripts execute regardless. After the summary table, the "Failed scripts:" block lists only the FAIL entries. |
+| S7-T5 TC-3 | README.md was rewritten with exactly the five sections specified. No additional content added. |
 
 ---
 
