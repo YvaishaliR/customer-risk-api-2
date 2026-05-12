@@ -45,19 +45,22 @@ Source: EXECUTION_PLAN.md — all S1 task test cases.
 
 ### Prediction Statement
 
-S1-T1 TC-1 | `.env.example` will contain exactly 6 lines with `=`, one per required variable (API_KEY, BASIC_AUTH_USER, BASIC_AUTH_PASSWORD, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD). No real secret values.  
-S1-T1 TC-2 | `.gitignore` will contain `.env` causing `git check-ignore` to exit 0 and the file to be excluded from version control.  
-S1-T1 TC-3 | `nginx/`, `fastapi/`, and `db-init/` directories will all be present with at least one file (`.gitkeep`) inside each.  
-S1-T2 TC-1 | `docker compose config` will parse without error — exit code 0, no warnings.  
-S1-T2 TC-2 | `depends_on` chain will be: db-init waits on postgres (service_healthy); fastapi waits on db-init (service_completed_successfully); nginx waits on fastapi (service_healthy).  
-S1-T2 TC-3 | FastAPI will have no `ports:` entry — port 8000 exposed internally only via `expose:`.  
-S1-T2 TC-4 | `pgdata` named volume will be declared in the top-level `volumes:` block.  
-S1-T3 TC-1 | `docker compose build` will exit 0 — all three stub images build from their respective Dockerfiles without error.  
-S1-T3 TC-2 | Each Dockerfile's first line will be exactly the required base image: `nginx:1.25-alpine` for nginx, `python:3.10-slim` for fastapi and db-init.  
-S1-T4 TC-1 | All four services will reach expected states within 60 seconds: postgres `healthy`, db-init `Exited (0)`, fastapi `healthy`, nginx `Up`.  
-S1-T4 TC-2 | `curl http://localhost:80` will return HTTP 200 from the nginx stub `return 200` location block.  
-S1-T4 TC-3 | `docker compose ps --all` will show db-init as `Exited (0)` and the remaining three services as `Up`.  
-S1-T4 TC-4 | `docker compose down -v` will remove all containers and the `pgdata` named volume cleanly with exit code 0.  
+| Case | Prediction |
+|------|------------|
+| S1-T1 TC-1 | `.env.example` will contain exactly 6 lines with `=`, one per required variable (API_KEY, BASIC_AUTH_USER, BASIC_AUTH_PASSWORD, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD). No real secret values. |
+| S1-T1 TC-2 | `.gitignore` will contain `.env` causing `git check-ignore` to exit 0 and the file to be excluded from version control. |
+| S1-T1 TC-3 | `nginx/`, `fastapi/`, and `db-init/` directories will all be present with at least one file (`.gitkeep`) inside each. |
+| S1-T2 TC-1 | `docker compose config` will parse without error — exit code 0, no warnings. |
+| S1-T2 TC-2 | `depends_on` chain will be: db-init waits on postgres (service_healthy); fastapi waits on db-init (service_completed_successfully); nginx waits on fastapi (service_healthy). |
+| S1-T2 TC-3 | FastAPI will have no `ports:` entry — port 8000 exposed internally only via `expose:`. |
+| S1-T2 TC-4 | `pgdata` named volume will be declared in the top-level `volumes:` block. |
+| S1-T3 TC-1 | `docker compose build` will exit 0 — all three stub images build from their respective Dockerfiles without error. |
+| S1-T3 TC-2 | Each Dockerfile's first line will be exactly the required base image: `nginx:1.25-alpine` for nginx, `python:3.10-slim` for fastapi and db-init. |
+| S1-T4 TC-1 | All four services will reach expected states within 60 seconds: postgres `healthy`, db-init `Exited (0)`, fastapi `healthy`, nginx `Up`. |
+| S1-T4 TC-2 | `curl http://localhost:80` will return HTTP 200 from the nginx stub `return 200` location block. |
+| S1-T4 TC-3 | `docker compose ps --all` will show db-init as `Exited (0)` and the remaining three services as `Up`. |
+| S1-T4 TC-4 | `docker compose down -v` will remove all containers and the `pgdata` named volume cleanly with exit code 0. |
+
 ---
 
 ### CC Challenge Output
@@ -147,13 +150,13 @@ S1-T4: `fastapi/Dockerfile` stub modified to install `curl` (deviation from S1-T
 
 ### Verification Verdict
 
-[x] All planned cases passed (S1-T1: TC-1–3; S1-T2: TC-1–4; S1-T3: TC-1–2; S1-T4: TC-1–4)
-[x] Test Cases Added During Session section complete — None discovered (all four tasks)
-[x] CC challenge reviewed for S1-T1, S1-T2, S1-T3, and S1-T4
-[x] Code review complete — INV-03 reviewed for S1-T2 (compose) and S1-T4 (script); S1-T1 and S1-T3 had no invariant touch
-[x] Scope decisions documented
+- All planned cases passed (S1-T1: TC-1–3; S1-T2: TC-1–4; S1-T3: TC-1–2; S1-T4: TC-1–4)
+- Test Cases Added During Session section complete — None discovered (all four tasks)
+- CC challenge reviewed for S1-T1, S1-T2, S1-T3, and S1-T4
+- Code review complete — INV-03 reviewed for S1-T2 (compose) and S1-T4 (script); S1-T1 and S1-T3 had no invariant touch
+- Scope decisions documented
 
-**Status: VERIFIED — Session 1 COMPLETE**
+**Status: VERIFIED — Session 1 COMPLETE**  
 **Engineer sign-off:** y vaishali rao — 2026-05-11
 
 ---
@@ -205,20 +208,23 @@ Source: EXECUTION_PLAN.md — S2-T1 test cases.
 
 ### Prediction Statement
 
-S2-T1 TC-1 | Schema will apply cleanly to a fresh database — `CREATE TABLE` for customers and risk_factors, `CREATE INDEX` for the customer_id index, exit code 0.  
-S2-T1 TC-2 | Inserting `tier='INVALID'` will trigger the `CHECK (tier IN ('LOW', 'MEDIUM', 'HIGH'))` constraint and be rejected with a check constraint violation error.  
-S2-T1 TC-3 | Inserting a risk_factor row referencing a non-existent `customer_id` will be rejected by the FOREIGN KEY constraint on `risk_factors.customer_id`.  
-S2-T1 TC-4 | Inserting a customer row with `tier=NULL` will be rejected by the `NOT NULL` constraint on the `tier` column.  
-S2-T1 TC-5 | Re-running the schema DDL against an already-initialised database will produce `NOTICE: relation already exists, skipping` for each object and exit 0 — no ERROR.  
-S2-T2 TC-1 | All three tier values (LOW, MEDIUM, HIGH) will be present in the `customers` table with at least 3 customers each.  
-S2-T2 TC-2 | Every `customer_id` in `customers` will have at least 2 corresponding rows in `risk_factors` — the subquery counting violators will return 0.  
-S2-T2 TC-3 | A second run of `seed.sql` will produce `INSERT 0 0` for every statement (conflict on PK or UNIQUE constraint) and leave row counts unchanged.  
-S2-T3 TC-1 | `init.py` will connect on the first attempt, execute schema.sql and seed.sql in sequence, print `db-init: schema applied` and `db-init: seed data loaded`, and exit 0.  
-S2-T3 TC-2 | Re-running `init.py` against a populated database will exit 0 with no data changes — `IF NOT EXISTS` and `ON CONFLICT DO NOTHING` absorb all re-runs.  
-S2-T3 TC-3 | With an unreachable Postgres host, `init.py` will print 10 `attempt N/10 failed` messages, then `could not connect after 10 attempts — exiting`, and exit 1.  
-S2-T3 TC-4 | With a wrong password, `init.py` will exhaust all 10 retry attempts (each returning `FATAL: password authentication failed`) and exit 1.  
-S2-T4 TC-1 | `s2_db.sh` will start postgres and db-init, wait for db-init to exit 0, run all 6 SQL checks against the seeded database via `docker compose exec`, print PASS for every check, and exit 0.  
-S2-T4 TC-2 | With db-init overridden to `sleep 600` and TIMEOUT=10, the poll loop will exhaust all 10 s before db-init exits, print "ERROR: db-init did not exit within 10s — aborting", and exit 1.  
+| Case | Prediction |
+|------|------------|
+| S2-T1 TC-1 | Schema will apply cleanly to a fresh database — `CREATE TABLE` for customers and risk_factors, `CREATE INDEX` for the customer_id index, exit code 0. |
+| S2-T1 TC-2 | Inserting `tier='INVALID'` will trigger the `CHECK (tier IN ('LOW', 'MEDIUM', 'HIGH'))` constraint and be rejected with a check constraint violation error. |
+| S2-T1 TC-3 | Inserting a risk_factor row referencing a non-existent `customer_id` will be rejected by the FOREIGN KEY constraint on `risk_factors.customer_id`. |
+| S2-T1 TC-4 | Inserting a customer row with `tier=NULL` will be rejected by the `NOT NULL` constraint on the `tier` column. |
+| S2-T1 TC-5 | Re-running the schema DDL against an already-initialised database will produce `NOTICE: relation already exists, skipping` for each object and exit 0 — no ERROR. |
+| S2-T2 TC-1 | All three tier values (LOW, MEDIUM, HIGH) will be present in the `customers` table with at least 3 customers each. |
+| S2-T2 TC-2 | Every `customer_id` in `customers` will have at least 2 corresponding rows in `risk_factors` — the subquery counting violators will return 0. |
+| S2-T2 TC-3 | A second run of `seed.sql` will produce `INSERT 0 0` for every statement (conflict on PK or UNIQUE constraint) and leave row counts unchanged. |
+| S2-T3 TC-1 | `init.py` will connect on the first attempt, execute schema.sql and seed.sql in sequence, print `db-init: schema applied` and `db-init: seed data loaded`, and exit 0. |
+| S2-T3 TC-2 | Re-running `init.py` against a populated database will exit 0 with no data changes — `IF NOT EXISTS` and `ON CONFLICT DO NOTHING` absorb all re-runs. |
+| S2-T3 TC-3 | With an unreachable Postgres host, `init.py` will print 10 `attempt N/10 failed` messages, then `could not connect after 10 attempts — exiting`, and exit 1. |
+| S2-T3 TC-4 | With a wrong password, `init.py` will exhaust all 10 retry attempts (each returning `FATAL: password authentication failed`) and exit 1. |
+| S2-T4 TC-1 | `s2_db.sh` will start postgres and db-init, wait for db-init to exit 0, run all 6 SQL checks against the seeded database via `docker compose exec`, print PASS for every check, and exit 0. |
+| S2-T4 TC-2 | With db-init overridden to `sleep 600` and TIMEOUT=10, the poll loop will exhaust all 10 s before db-init exits, print "ERROR: db-init did not exit within 10s — aborting", and exit 1. |
+
 ---
 
 ### CC Challenge Output
@@ -316,13 +322,13 @@ S2-T4: TIMEOUT set to 90 s (vs 60 s in s1_smoke.sh) because db-init must wait fo
 
 ### Verification Verdict
 
-[x] All planned cases passed (S2-T1: TC-1–5; S2-T2: TC-1–3; S2-T3: TC-1–4; S2-T4: TC-1–2)
-[x] Test Cases Added During Session section complete — None discovered (all four tasks)
-[x] CC challenge reviewed for S2-T1, S2-T2, S2-T3, and S2-T4
-[x] Code review complete — INV-06/08/09 reviewed for S2-T1; INV-06/07/08/09 reviewed for S2-T2; INV-03/INV-05 reviewed for S2-T3; INV-06/07/08/09 verified by SQL checks for S2-T4
-[x] Scope decisions documented
+- All planned cases passed (S2-T1: TC-1–5; S2-T2: TC-1–3; S2-T3: TC-1–4; S2-T4: TC-1–2)
+- Test Cases Added During Session section complete — None discovered (all four tasks)
+- CC challenge reviewed for S2-T1, S2-T2, S2-T3, and S2-T4
+- Code review complete — INV-06/08/09 reviewed for S2-T1; INV-06/07/08/09 reviewed for S2-T2; INV-03/INV-05 reviewed for S2-T3; INV-06/07/08/09 verified by SQL checks for S2-T4
+- Scope decisions documented
 
-**Status: VERIFIED — Session 2 COMPLETE**
+**Status: VERIFIED — Session 2 COMPLETE**  
 **Engineer sign-off:** y vaishali rao — 2026-05-11
 
 ---
@@ -371,20 +377,22 @@ Source: EXECUTION_PLAN.md — S3-T1 test cases.
 ---
 
 ### Prediction Statement
-
-S3-T1 TC-1 | `GET /health` will return HTTP 200 with body `{"status":"ok"}`. The endpoint is registered on the `FastAPI()` instance and FastAPI serializes the returned dict to JSON automatically.  
-S3-T1 TC-2 | `docker compose build fastapi` will exit 0. All five pinned packages (`fastapi==0.111.0`, `uvicorn[standard]==0.29.0`, `psycopg2-binary==2.9.9`, `pydantic==2.7.0`, `python-dotenv==1.0.1`) install cleanly from PyPI into `python:3.10-slim`.  
-S3-T2 TC-1 | `GET /health` with no `X-API-Key` header will return HTTP 401. FastAPI's `Header(None)` default passes `None` to the dependency; the `x_api_key is None` branch raises `HTTPException(401)` before any route logic executes.  
-S3-T2 TC-2 | `GET /health` with a wrong key value will return HTTP 401. The `x_api_key != _API_KEY` branch raises `HTTPException(401)`. The comparison is exact and case-sensitive.  
-S3-T2 TC-3 | `GET /health` with the correct key value will return HTTP 200. The dependency returns without raising; the route handler executes and returns `{"status": "ok"}`.  
-S3-T2 TC-4 | The 401 response body will be `{"detail":"Invalid or missing API key"}` — a fixed string that contains no key value.  
-S3-T2 TC-5 | FastAPI logs will contain only request lines (method, path, status code) and the startup message. The key value (`inv01-test-key-do-not-use`) will not appear in any log line — no header logging, no key variable logging.  
 S3-T3 INV-01-A | The `get_api_key` dependency receives `None` for a missing header and raises `HTTPException(401)` before any route handler executes. The script will receive HTTP 401.
 S3-T3 INV-01-B | `"wrong-key" != _API_KEY` is True; `HTTPException(401)` is raised. The script will receive HTTP 401.
 S3-T3 INV-01-C | The correct key passes both the `is None` and `!= _API_KEY` checks; the dependency returns without raising. The `/health` handler executes and returns HTTP 200.
 S3-T3 INV-01-D | The `HTTPException` detail is the fixed string `"Invalid or missing API key"` — no variable substitution. The key string `inv01-test-key-do-not-use` will not appear in the JSON response body.
 S3-T3 INV-02-A | Uvicorn does not copy request headers into response headers. The response headers (`content-type`, `content-length`, `date`, `server`) contain no key string.
 S3-T3 INV-02-B | No `logger`, `print`, or uvicorn access-log format includes the `X-API-Key` header value. Log lines show only method, path, and status code. The key string will not appear.
+
+| Case | Prediction |
+|------|------------|
+| S3-T1 TC-1 | `GET /health` will return HTTP 200 with body `{"status":"ok"}`. The endpoint is registered on the `FastAPI()` instance and FastAPI serializes the returned dict to JSON automatically. |
+| S3-T1 TC-2 | `docker compose build fastapi` will exit 0. All five pinned packages (`fastapi==0.111.0`, `uvicorn[standard]==0.29.0`, `psycopg2-binary==2.9.9`, `pydantic==2.7.0`, `python-dotenv==1.0.1`) install cleanly from PyPI into `python:3.10-slim`. |
+| S3-T2 TC-1 | `GET /health` with no `X-API-Key` header will return HTTP 401. FastAPI's `Header(None)` default passes `None` to the dependency; the `x_api_key is None` branch raises `HTTPException(401)` before any route logic executes. |
+| S3-T2 TC-2 | `GET /health` with a wrong key value will return HTTP 401. The `x_api_key != _API_KEY` branch raises `HTTPException(401)`. The comparison is exact and case-sensitive. |
+| S3-T2 TC-3 | `GET /health` with the correct key value will return HTTP 200. The dependency returns without raising; the route handler executes and returns `{"status": "ok"}`. |
+| S3-T2 TC-4 | The 401 response body will be `{"detail":"Invalid or missing API key"}` — a fixed string that contains no key value. |
+| S3-T2 TC-5 | FastAPI logs will contain only request lines (method, path, status code) and the startup message. The key value (`inv01-test-key-do-not-use`) will not appear in any log line — no header logging, no key variable logging. |
 
 ---
 
@@ -470,13 +478,13 @@ S3-T3: Image name resolved dynamically via `docker images --format` after `docke
 
 ### Verification Verdict
 
-[x] All planned cases passed (S3-T1: TC-1–2; S3-T2: TC-1–5; S3-T3: INV-01-A through INV-02-B)
-[x] Test Cases Added During Session section complete — None discovered (all three tasks)
-[x] CC challenge reviewed for S3-T1, S3-T2, and S3-T3
-[x] Code review complete — S3-T1 touches no invariant; INV-01/INV-02 reviewed for S3-T2; INV-01/INV-02 script review for S3-T3
-[x] Scope decisions documented
+- All planned cases passed (S3-T1: TC-1–2; S3-T2: TC-1–5; S3-T3: INV-01-A through INV-02-B)
+- Test Cases Added During Session section complete — None discovered (all three tasks)
+- CC challenge reviewed for S3-T1, S3-T2, and S3-T3
+- Code review complete — S3-T1 touches no invariant; INV-01/INV-02 reviewed for S3-T2; INV-01/INV-02 script review for S3-T3
+- Scope decisions documented
 
-**Status: VERIFIED — Session 3 COMPLETE**
+**Status: VERIFIED — Session 3 COMPLETE**  
 **Engineer sign-off:** y vaishali rao — 2026-05-11
 
 ---
@@ -516,9 +524,12 @@ Source: EXECUTION_PLAN.md — S4-T1 test cases.
 
 ### Prediction Statement
 
-S4-T1 TC-1 | `_connect()` will succeed on the first attempt (postgres is healthy before fastapi starts per `depends_on`). The log line `"FastAPI: database connection established"` will appear between "Waiting for application startup." and "Application startup complete." in the uvicorn output.  
-S4-T1 TC-2 | With `POSTGRES_HOST=192.0.2.1` (an unroutable RFC 5737 address), every `psycopg2.connect()` call will raise `OperationalError`. After attempt 10, `_connect()` raises `RuntimeError("Database connection failed")`, which propagates through the lifespan context manager. Uvicorn catches this as a startup failure, logs the traceback, and exits non-zero without accepting any connections.  
-S4-T1 TC-3 | The lifespan connects to the DB on startup before uvicorn signals readiness. The `/health` route handler does not use the DB connection, so a successful DB connect has no negative effect on the endpoint. HTTP 200 will be returned.  
+| Case | Prediction |
+|------|------------|
+| S4-T1 TC-1 | `_connect()` will succeed on the first attempt (postgres is healthy before fastapi starts per `depends_on`). The log line `"FastAPI: database connection established"` will appear between "Waiting for application startup." and "Application startup complete." in the uvicorn output. |
+| S4-T1 TC-2 | With `POSTGRES_HOST=192.0.2.1` (an unroutable RFC 5737 address), every `psycopg2.connect()` call will raise `OperationalError`. After attempt 10, `_connect()` raises `RuntimeError("Database connection failed")`, which propagates through the lifespan context manager. Uvicorn catches this as a startup failure, logs the traceback, and exits non-zero without accepting any connections. |
+| S4-T1 TC-3 | The lifespan connects to the DB on startup before uvicorn signals readiness. The `/health` route handler does not use the DB connection, so a successful DB connect has no negative effect on the endpoint. HTTP 200 will be returned. |
+
 ---
 
 ### CC Challenge Output
@@ -560,11 +571,11 @@ S4-T1: `get_db_conn()` is defined in this task but not wired to any route yet �
 
 ### Verification Verdict
 
-[x] All planned cases passed (S4-T1: TC-1–3)
-[x] Test Cases Added During Session section complete — None discovered
-[x] CC challenge reviewed for S4-T1
-[x] Code review complete — INV-03 reviewed for S4-T1
-[x] Scope decisions documented
+- All planned cases passed (S4-T1: TC-1–3)
+- Test Cases Added During Session section complete — None discovered
+- CC challenge reviewed for S4-T1
+- Code review complete — INV-03 reviewed for S4-T1
+- Scope decisions documented
 
 ---
 
@@ -650,7 +661,7 @@ S4-T3: The INV-05 check counts only the `customers` table. The `risk_factors` ta
 
 ---
 
-**Status: VERIFIED — Session 4 COMPLETE**
+**Status: VERIFIED — Session 4 COMPLETE**  
 **Engineer sign-off:** y vaishali rao — 2026-05-11
 
 ---
@@ -778,12 +789,15 @@ Source: S5-T1 task prompt — all test cases.
 
 ### Prediction Statement
 
-S5-T1 TC-1a | `envsubst '${API_KEY}'` will substitute exactly one occurrence — the `proxy_set_header X-API-Key ${API_KEY}` line. All nginx variables (`$uri`, `$host`, `$remote_addr`, etc.) are unbraced and will not be touched. Zero `${VAR}` patterns will remain.  
-S5-T1 TC-1b | After substitution the config is structurally correct nginx syntax: `events {}`, `http { log_format ...; server { listen 80; auth_basic ...; location / { ... } location /api/ { ... } } }`. `nginx -t` will pass provided the upstream hostname is resolvable (satisfied by `--add-host`) and the htpasswd file exists (satisfied by `touch`).  
-S5-T1 TC-2 | `proxy_set_header X-API-Key ${API_KEY}` is in the `/api/` location block. The awk extraction of that block will contain the directive. `grep` will match.  
-S5-T1 TC-3 | `proxy_hide_header X-API-Key` appears immediately after `proxy_set_header X-API-Key` in the `/api/` location block. `grep` will match.  
-S5-T1 TC-4 | The log format contains only the seven specified fields. `$http_x_api_key` was deliberately excluded. `grep` will return no match.  
-S5-T1 TC-5 | `auth_basic "Restricted"` and `auth_basic_user_file /etc/nginx/.htpasswd` appear directly inside `server {}` before any `location` block. The awk script tracking `in_loc` state will find no `auth_basic` inside a location block.  
+| Case | Prediction |
+|------|------------|
+| S5-T1 TC-1a | `envsubst '${API_KEY}'` will substitute exactly one occurrence — the `proxy_set_header X-API-Key ${API_KEY}` line. All nginx variables (`$uri`, `$host`, `$remote_addr`, etc.) are unbraced and will not be touched. Zero `${VAR}` patterns will remain. |
+| S5-T1 TC-1b | After substitution the config is structurally correct nginx syntax: `events {}`, `http { log_format ...; server { listen 80; auth_basic ...; location / { ... } location /api/ { ... } } }`. `nginx -t` will pass provided the upstream hostname is resolvable (satisfied by `--add-host`) and the htpasswd file exists (satisfied by `touch`). |
+| S5-T1 TC-2 | `proxy_set_header X-API-Key ${API_KEY}` is in the `/api/` location block. The awk extraction of that block will contain the directive. `grep` will match. |
+| S5-T1 TC-3 | `proxy_hide_header X-API-Key` appears immediately after `proxy_set_header X-API-Key` in the `/api/` location block. `grep` will match. |
+| S5-T1 TC-4 | The log format contains only the seven specified fields. `$http_x_api_key` was deliberately excluded. `grep` will return no match. |
+| S5-T1 TC-5 | `auth_basic "Restricted"` and `auth_basic_user_file /etc/nginx/.htpasswd` appear directly inside `server {}` before any `location` block. The awk script tracking `in_loc` state will find no `auth_basic` inside a location block. |
+
 ---
 
 ### CC Challenge Output
@@ -1056,7 +1070,7 @@ S5-T4: Runtime verification deferred — Docker Desktop was unavailable at log-u
 
 ---
 
-**Status: VERIFIED — Session 5 COMPLETE**
+**Status: VERIFIED — Session 5 COMPLETE**  
 **Engineer sign-off:** y vaishali rao — 2026-05-12
 
 ---
@@ -1097,10 +1111,13 @@ Source: S6-T1 task prompt — all test cases stated in the session.
 
 ### Prediction Statement
 
-S6-T1 TC-1 | A valid customer ID (e.g., `CUST001`) fetches `GET /api/risk/CUST001`. Status 200 → `resp.json()` → `showResult(data)`. The tier value (`LOW`, `MEDIUM`, or `HIGH`) is applied as both the CSS class suffix (`tier-LOW`) and the badge display text. The `risk_factors` array is mapped to `<li>` elements with `factor_code` and `factor_description`. All values are HTML-escaped via `esc()` before `innerHTML` assignment.  
-S6-T1 TC-2 | A non-existent ID returns HTTP 404 from FastAPI, propagated unchanged by nginx. The `resp.status === 404` branch calls `showError('Customer not found')`, rendering `<p class="error">Customer not found</p>`.  
-S6-T1 TC-3 | On initial page load, `#results` contains no child elements (it is an empty `<div>` in the HTML). The `autofocus` attribute on the input element causes the browser to move keyboard focus to the field immediately, consistent with the lookup-centric purpose of the page.  
-S6-T1 TC-4 | The `keydown` event listener on the input checks `e.key === 'Enter'` and calls `lookup()` directly — the same function triggered by the button's `click` listener. Behaviour is identical: results cleared, button disabled, fetch dispatched, button re-enabled in `finally`.  
+| Case | Prediction |
+|------|------------|
+| S6-T1 TC-1 | A valid customer ID (e.g., `CUST001`) fetches `GET /api/risk/CUST001`. Status 200 → `resp.json()` → `showResult(data)`. The tier value (`LOW`, `MEDIUM`, or `HIGH`) is applied as both the CSS class suffix (`tier-LOW`) and the badge display text. The `risk_factors` array is mapped to `<li>` elements with `factor_code` and `factor_description`. All values are HTML-escaped via `esc()` before `innerHTML` assignment. |
+| S6-T1 TC-2 | A non-existent ID returns HTTP 404 from FastAPI, propagated unchanged by nginx. The `resp.status === 404` branch calls `showError('Customer not found')`, rendering `<p class="error">Customer not found</p>`. |
+| S6-T1 TC-3 | On initial page load, `#results` contains no child elements (it is an empty `<div>` in the HTML). The `autofocus` attribute on the input element causes the browser to move keyboard focus to the field immediately, consistent with the lookup-centric purpose of the page. |
+| S6-T1 TC-4 | The `keydown` event listener on the input checks `e.key === 'Enter'` and calls `lookup()` directly — the same function triggered by the button's `click` listener. Behaviour is identical: results cleared, button disabled, fetch dispatched, button re-enabled in `finally`. |
+
 ---
 
 ### CC Challenge Output
@@ -1281,5 +1298,5 @@ S6-T3: Runtime verification deferred — Docker Desktop was unavailable at log-u
 
 ---
 
-**Status: VERIFIED (S6-T1, S6-T2, S6-T3) — Session 6 COMPLETE**
+**Status: VERIFIED (S6-T1, S6-T2, S6-T3) — Session 6 COMPLETE**  
 **Engineer sign-off:** y vaishali rao — 2026-05-12
