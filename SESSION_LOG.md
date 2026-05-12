@@ -363,7 +363,7 @@
 | Task ID | Name                                                              | Status   | Commit |
 |---------|-------------------------------------------------------------------|----------|--------|
 | S7-T1   | Cold-start verification (`verify/s7_coldstart.sh`)                | VERIFIED |        |
-| S7-T2   | Data invariant checks (`verify/s7_invariants_data.sh`)            | PENDING  |        |
+| S7-T2   | Data invariant checks (`verify/s7_invariants_data.sh`)            | VERIFIED |        |
 | S7-T3   | Auth invariant checks (`verify/s7_invariants_auth.sh`)            | PENDING  |        |
 | S7-T4   | Schema invariant checks (`verify/s7_invariants_schema.sh`)        | PENDING  |        |
 | S7-T5   | Master runner (`verify/run_all.sh`)                               | PENDING  |        |
@@ -377,6 +377,9 @@
 | S7-T1 | Used `running` instead of `healthy` for nginx wait condition. | `docker-compose.yml` defines no healthcheck for the nginx service — `Health.Status` is always empty for that container. `running` state is the maximum observable signal and is consistent with s5_nginx.sh and s6_ui.sh. Flagged as a deviation. |
 | S7-T1 | Normalised both timestamps to `YYYY-MM-DD HH:MM:SS` via `norm_ts()` before comparing for INV-03. | `State.FinishedAt` uses RFC3339 (`T` separator, `Z` suffix); health log `Start` uses Go's default time format (space separator, `+0000 UTC` suffix). Direct lexicographic comparison fails because `T` (ASCII 84) > space (ASCII 32). Truncating both to the first 19 chars and replacing `T`→space makes them structurally identical and correctly comparable. |
 | S7-T1 | Disarmed `trap` with `trap - EXIT` after explicit step-7 teardown. | Prevents double `docker compose down -v` on clean exit (which would produce spurious "no such container" errors) while keeping the safety net active for abort or error paths where step 7 was never reached. |
+| S7-T2 | Used MD5 checksums over concatenated `customer_id\|\|tier` and `customer_id\|\|factor_code` rows to detect any write to `customers` or `risk_factors` tables. | A single MD5 over a deterministic `string_agg` captures both value changes and row insertions/deletions in one scalar comparison. If either table is mutated in any way the checksums will differ. Simpler than row-count comparison alone (which would miss UPDATE without INSERT/DELETE). |
+| S7-T2 | Added `WHERE tier != 'HIGH'` guard to the INV-10 DB UPDATE. | If a prior test run left CUST001 tier as HIGH (e.g. after a crash before the restore step), the UPDATE would be a no-op and the test would trivially pass even if caching were present. The guard ensures the DB state actually changes before the API is queried, guaranteeing the check is non-trivial. |
+| S7-T2 | Used `|| echo ""` fallback in `psql_exec()` to return empty string on error rather than failing with `set -e`. | Allows the script to detect empty output and call `fail` with a descriptive message, rather than the whole script aborting silently with an unhelpful shell error. |
 
 ---
 

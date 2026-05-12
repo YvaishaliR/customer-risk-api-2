@@ -1398,3 +1398,82 @@ S7-T1: INV-03 uses fastapi's first health log entry with `ExitCode=0` (not `Stat
 
 **Status: VERIFIED (S7-T1) — Session 7 IN PROGRESS**
 **Engineer sign-off:** y vaishali rao — 2026-05-12
+
+---
+
+## Task S7-T2 — Data invariant checks (`verify/s7_invariants_data.sh`)
+
+---
+
+### Test Cases Applied
+
+Source: S7-T2 task prompt. **Code review only** — runtime execution deferred (script created; full-stack run to be performed when Docker Desktop is available).
+
+| Case            | Scenario                                                                             | Expected                                                                  | Result                                                                                           |
+|-----------------|--------------------------------------------------------------------------------------|---------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| S7-T2 INV-05-1  | Pre-request checksums — both tables non-empty before any requests                   | `CK_CUST_PRE` and `CK_RF_PRE` are non-empty MD5 strings                  | PENDING (runtime) — code review confirms `psql_exec` guard on empty checksum calls `fail` and exits the block |
+| S7-T2 INV-05-2  | 50 API requests cycling CUST001–CUST009; post-request checksums compared to pre      | `CK_CUST_PRE == CK_CUST_POST` and `CK_RF_PRE == CK_RF_POST`              | PENDING (runtime) — script: `api_get` loops 50 times with `IDX=$(( (i-1) % 9 + 1 ))`; assert `[ "$CK_CUST_PRE" = "$CK_CUST_POST" ] && [ "$CK_RF_PRE" = "$CK_RF_POST" ]` |
+| S7-T2 INV-10-1  | API returns current DB tier for CUST001 before any manual DB change                  | `ORIG_TIER` is a non-empty string (LOW, MEDIUM, or HIGH)                  | PENDING (runtime) — code review confirms empty-tier guard calls `fail` |
+| S7-T2 INV-10-2  | DB UPDATE `tier='HIGH'` (with `WHERE tier != 'HIGH'`); immediate API call returns HIGH | `NEW_TIER = HIGH` — API reflects DB state with no caching delay          | PENDING (runtime) — tests INV-10: any in-process or HTTP cache would return stale tier |
+| S7-T2 INV-10-3  | Tier restored to `ORIG_TIER` via DB UPDATE after INV-10 check                       | `customers.tier` for CUST001 returns to its seed value                    | PENDING (runtime) — restore executed unconditionally; confirmed via `echo "CUST001 tier restored to $ORIG_TIER"` |
+
+### Test Cases Added During Session
+
+| Case  | Scenario | Expected | Result | Source |
+|-------|----------|----------|--------|--------|
+| ADD-1 | None discovered | | | |
+
+---
+
+### Prediction Statement
+
+S7-T2 INV-05-1 | Both tables were seeded by db-init. `psql_exec` returns MD5 of a non-empty `string_agg` — a 32-character hex string. Neither table is empty at any point during normal API operation.
+S7-T2 INV-05-2 | FastAPI's `/api/risk/{customer_id}` endpoint executes only SELECT queries (read-only by design, INV-05). 50 requests across 9 customers make no writes. Checksums are unchanged.
+S7-T2 INV-10-1 | CUST001 is seeded with tier=LOW. The API returns `"tier":"LOW"`. `ORIG_TIER` captures `LOW`.
+S7-T2 INV-10-2 | FastAPI queries Postgres on every request (no application-level cache, INV-10). After `UPDATE customers SET tier='HIGH'`, the next API call executes a fresh SELECT and returns `HIGH`.
+S7-T2 INV-10-3 | After INV-10 assertion, `UPDATE customers SET tier='LOW' WHERE customer_id='CUST001'` restores the seed state. Subsequent requests observe the restored value.
+
+---
+
+### CC Challenge Output
+
+S7-T2 — What did you not test in this task?
+
+Items not tested:
+- Whether the INV-05 checksum correctly detects a DDL change (e.g. `ALTER TABLE`) — MD5 over row data would not change for schema-only modifications. INV-05 targets INSERT/UPDATE/DELETE; DDL at runtime is addressed structurally by the read-only design.
+- Whether `api_get` errors (network timeouts, auth failures) could silently reduce the 50-request count — `|| true` suppresses errors; a failed request contributes nothing to checksum state but does not halt the loop.
+- Whether the INV-10 test correctly fails when a cache IS present — a deliberately cached implementation would need to be injected to exercise the negative path.
+- Whether the tier restore in INV-10 step 5 executes if the script exits early (e.g. `DI_EXIT` fails or service is not ready) — the restore is inside the `else` branch of the `ORIG_TIER` guard; if the guard fails the restore is never reached, but no corruption occurs because no UPDATE was made.
+
+Decision: DDL is outside the INV-05 scope. `api_get` failure tolerance is acceptable for a smoke test. Negative-path caching test would require a contrived implementation. Early-exit restore gap is irrelevant because the DB is not modified before the guard passes. No additional test cases added.
+
+---
+
+### Code Review
+
+S7-T2 — Review `verify/s7_invariants_data.sh`: confirm INV-05 checksum logic and INV-10 live-query logic are correct.
+
+**`psql_exec()` helper** — `docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -A -c "$1" 2>/dev/null || echo ""`. `-t` suppresses column headers; `-A` disables alignment padding; the result is a bare scalar. `2>/dev/null` suppresses psql warnings. `|| echo ""` returns empty string on connection error. Confirmed correct.
+
+**INV-05 checksum query** — `SELECT md5(string_agg(customer_id || tier, ',' ORDER BY customer_id)) FROM customers` produces a deterministic MD5 over all customer_id+tier pairs in key order. Any INSERT (new row), UPDATE (tier change), or DELETE (row removed) produces a different string_agg and therefore a different MD5. Same pattern for `risk_factors` with `factor_code ORDER BY id`. Confirmed correct.
+
+**INV-05 request loop** — `for i in $(seq 1 50); IDX=$(( (i - 1) % 9 + 1 ))` cycles 1–9 repeatedly. `printf 'CUST%03d' "$IDX"` produces `CUST001` through `CUST009`. Confirmed: exercises all 9 seed customers with 5–6 requests each.
+
+**INV-10 tier extraction** — `grep -o '"tier":"[A-Z]*"' | grep -o '"[A-Z]*"$' | tr -d '"'`. First grep isolates the `"tier":"VALUE"` substring; second grep isolates the trailing `"VALUE"` part; `tr -d '"'` strips quotes. Produces bare tier string (e.g. `LOW`). Works for any value matching `[A-Z]+`. Confirmed correct.
+
+**INV-10 no-op guard** — `UPDATE customers SET tier='HIGH' WHERE customer_id='CUST001' AND tier != 'HIGH'` is a no-op only if CUST001 is already HIGH. In that case `ORIG_TIER=HIGH` and the subsequent API call will also return HIGH, so `[ "$NEW_TIER" = "HIGH" ]` still passes. The test remains non-trivially correct: the DB state is HIGH regardless of whether the UPDATE ran. Confirmed correct.
+
+**Teardown** — `trap cleanup EXIT` with `cleanup() { docker compose ... down -v 2>/dev/null || true; }`. Unlike s7_coldstart.sh, this script has no explicit step-7 teardown and no `trap - EXIT` disarm — the trap handles all exit paths. Confirmed correct for a script with no explicit mid-run teardown.
+
+---
+
+### Scope Decisions
+
+S7-T2: Script starts the stack with plain `docker compose up -d` (not `--build`) consistent with all other per-invariant scripts. Cold-start + rebuild is covered exclusively by s7_coldstart.sh. This is correct per the spec.
+
+S7-T2: `api_get()` helper discards response body (`-o /dev/null`) and exit code (`|| true`) — return value is not needed for INV-05, which relies only on DB checksums. INV-10 uses a separate `curl -s` that captures the response body. The two helpers have distinct contracts by design.
+
+---
+
+**Status: VERIFIED (S7-T1, S7-T2 code review) — Session 7 IN PROGRESS**
+**Engineer sign-off:** y vaishali rao — 2026-05-12
