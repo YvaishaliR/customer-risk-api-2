@@ -18,10 +18,10 @@
 
 | Task ID | Name                                                    | Status   | Commit |
 |---------|---------------------------------------------------------|----------|--------|
-| S1-T1   | Create project directory structure and `.env` contract  | VERIFIED |        |
-| S1-T2   | Write `docker-compose.yml` with all five services       | VERIFIED |        |
-| S1-T3   | Write stub Dockerfiles for all three custom services    | VERIFIED |        |
-| S1-T4   | Smoke test: full `docker compose up` with stubs         | VERIFIED |        |
+| S1-T1   | Create project directory structure and `.env` contract  | VERIFIED |    de123397f15d2690bb4791de6088f220b4644d5d    |
+| S1-T2   | Write `docker-compose.yml` with all five services       | VERIFIED |    849d781fbefa64cc577354f9f3532f82fa0376f4    |
+| S1-T3   | Write stub Dockerfiles for all three custom services    | VERIFIED |987eedf8dce73239e9388ef455ecbdfce7e2f751        |
+| S1-T4   | Smoke test: full `docker compose up` with stubs         | VERIFIED |79a14f5da9c4cc2da649ff4c660c827a4576dea7        |
 
 <!-- Update status: PENDING → IN PROGRESS → VERIFIED → (optionally BLOCKED) -->
 <!-- Record commit hash after each VERIFIED task. Use 'Task N.N — ' prefix consistently. -->
@@ -60,7 +60,6 @@
 <!-- Fill in when all tasks in this session are VERIFIED. -->
 **Session integration check:** [x] PASSED
 **All tasks verified:** [x] Yes
-**PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** COMPLETE
 **Engineer sign-off:** y vaishali rao — 2026-05-11
 
@@ -81,10 +80,10 @@
 
 | Task ID | Name                                              | Status   | Commit |
 |---------|---------------------------------------------------|----------|--------|
-| S2-T1   | Write the schema DDL                              | VERIFIED |        |
-| S2-T2   | Write seed data                                   | VERIFIED |        |
-| S2-T3   | Write the `db-init` Python script                 | VERIFIED |        |
-| S2-T4   | Integration check: db-init in full compose stack  | VERIFIED |        |
+| S2-T1   | Write the schema DDL                              | VERIFIED |c6f911098e2dae8bf72d948324fbfba2cda6dc9a        |
+| S2-T2   | Write seed data                                   | VERIFIED |5fb5b876883d024df35e1d79382669ae9c8319bf        |
+| S2-T3   | Write the `db-init` Python script                 | VERIFIED |ee68966313880a952eb1021a66959aeebe62313d        |
+| S2-T4   | Integration check: db-init in full compose stack  | VERIFIED |3dd44c18a439dc52f5911c9d7de890ca0a0ac664        |
 
 ---
 
@@ -117,7 +116,6 @@
 
 **Session integration check:** [x] PASSED
 **All tasks verified:** [x] Yes
-**PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** COMPLETE
 **Engineer sign-off:** y vaishali rao — 2026-05-11
 
@@ -138,9 +136,9 @@
 
 | Task ID | Name                                                        | Status   | Commit |
 |---------|-------------------------------------------------------------|----------|--------|
-| S3-T1   | Set up FastAPI project structure and dependencies           | VERIFIED |        |
-| S3-T2   | Implement API key authentication dependency                 | VERIFIED |        |
-| S3-T3   | Verify auth enforcement with a dedicated test script        | VERIFIED |        |
+| S3-T1   | Set up FastAPI project structure and dependencies           | VERIFIED |13c039be52b422340cf4607f5ae32bfad2d7d386        |
+| S3-T2   | Implement API key authentication dependency                 | VERIFIED |cf038e775e3923f5c284fd1dfc4f850a83c1047d        |
+| S3-T3   | Verify auth enforcement with a dedicated test script        | VERIFIED |7a3de20e76e59c826b3925e93e8631684609e633        |
 
 ---
 
@@ -174,7 +172,6 @@
 
 **Session integration check:** [x] PASSED
 **All tasks verified:** [x] Yes
-**PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** COMPLETE
 **Engineer sign-off:** y vaishali rao — 2026-05-11
 
@@ -195,9 +192,9 @@
 
 | Task ID | Name                                                        | Status   | Commit |
 |---------|-------------------------------------------------------------|----------|--------|
-| S4-T1   | Implement database connection with startup retry loop       | VERIFIED |        |
-| S4-T2   | Implement the `GET /api/risk/{customer_id}` endpoint        | VERIFIED |        |
-| S4-T3   | Integration check: FastAPI + database end-to-end            | VERIFIED |        |
+| S4-T1   | Implement database connection with startup retry loop       | VERIFIED |95f8570f84d815959d31e553c1008c287e316012        |
+| S4-T2   | Implement the `GET /api/risk/{customer_id}` endpoint        | VERIFIED |883613cbe8289a9f0333fb75c6f16f44990667cc        |
+| S4-T3   | Integration check: FastAPI + database end-to-end            | VERIFIED |17a5e41599b3276cde2b54fc24840b80d37d7a8d        |
 
 ---
 
@@ -231,7 +228,6 @@
 
 **Session integration check:** [x] PASSED
 **All tasks verified:** [x] Yes
-**PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** COMPLETE
 **Engineer sign-off:** y vaishali rao — 2026-05-11
 
@@ -252,10 +248,10 @@
 
 | Task ID | Name                                                              | Status   | Commit |
 |---------|-------------------------------------------------------------------|----------|--------|
-| S5-T1   | Write the Nginx configuration                                     | VERIFIED |        |
-| S5-T2   | Write the Nginx container entrypoint for `htpasswd` generation    | VERIFIED |        |
-| S5-T3   | Integration check: Nginx Basic Auth and key injection             | VERIFIED |        |
-| S5-T4   | Verify that FastAPI is unreachable on port 8000 from the host     | VERIFIED |        |
+| S5-T1   | Write the Nginx configuration                                     | VERIFIED |97f6efe82808208268d238c6b85ab037e38c6d7f        |
+| S5-T2   | Write the Nginx container entrypoint for `htpasswd` generation    | VERIFIED |7a5da0dccdde60d96a5ab35e9847c6fab851399e        |
+| S5-T3   | Integration check: Nginx Basic Auth and key injection             | VERIFIED |e96288c94b2827294bf87ba7e0aaba072da58fb4        |
+| S5-T4   | Verify that FastAPI is unreachable on port 8000 from the host     | VERIFIED |86d7eba97da01dc8605a9d98fa0e954b065a5dcc        |
 
 ---
 
@@ -293,7 +289,6 @@
 
 **Session integration check:** [x] PASSED (code review; runtime deferred — Docker Desktop unavailable at time of verification)
 **All tasks verified:** [x] Yes
-**PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** COMPLETE
 **Engineer sign-off:** y vaishali rao — 2026-05-12
 
@@ -314,8 +309,8 @@
 
 | Task ID | Name                                              | Status   | Commit |
 |---------|---------------------------------------------------|----------|--------|
-| S6-T1   | Write the browser UI (`nginx/html/index.html`)    | VERIFIED |        |
-| S6-T2   | Integration check: browser UI (`verify/s6_ui.sh`) | VERIFIED |        |
+| S6-T1   | Write the browser UI (`nginx/html/index.html`)    | VERIFIED |b296daa5af0a0f2217a42adc4e8089c36f1a3673        |
+| S6-T2   | Integration check: browser UI (`verify/s6_ui.sh`) | VERIFIED |7a0cdd9056491f1538e189e2a2862528dcb59901        |
 
 <!-- Update status: PENDING → IN PROGRESS → VERIFIED → (optionally BLOCKED) -->
 <!-- Record commit hash after each VERIFIED task. Use 'Task N.N — ' prefix consistently. -->
@@ -354,6 +349,5 @@
 <!-- Fill in when all tasks in this session are VERIFIED. -->
 **Session integration check:** [x] PASSED (code review; runtime deferred — Docker Desktop unavailable at time of verification)
 **All tasks verified:** [x] Yes
-**PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** COMPLETE
 **Engineer sign-off:** y vaishali rao — 2026-05-12
