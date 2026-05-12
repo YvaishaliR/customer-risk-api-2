@@ -1477,3 +1477,87 @@ S7-T2: `api_get()` helper discards response body (`-o /dev/null`) and exit code 
 
 **Status: VERIFIED (S7-T1, S7-T2 code review) — Session 7 IN PROGRESS**
 **Engineer sign-off:** y vaishali rao — 2026-05-12
+
+---
+
+## Task S7-T3 — Auth invariant checks (`verify/s7_invariants_auth.sh`)
+
+---
+
+### Test Cases Applied
+
+Source: S7-T3 task prompt. **Code review only** — runtime execution deferred (script created; full-stack run to be performed when Docker Desktop is available).
+
+| Case                  | Scenario                                                                                   | Expected                                                                             | Result                                                                                                                          |
+|-----------------------|--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
+| INV-01-FULLSTACK-A    | GET /api/risk/CUST001 with no Basic Auth credentials                                       | HTTP 401 from Nginx — basic_auth blocks before proxying; FastAPI never reached       | PENDING (runtime) — code review confirms `curl` with no `-u` flag; asserts `STATUS_A = 401`                                    |
+| INV-01-FULLSTACK-B    | GET /api/risk/CUST001 with valid Basic Auth and explicit `-H "X-API-Key: wrong-key"`       | HTTP 200 (nginx proxy_set_header overrides) or HTTP 401 (caller header not overridden) — document which | PENDING (runtime) — script accepts both 200 and 401 as documented PASS; any other code is FAIL                     |
+| INV-01-FULLSTACK-C    | GET /api/risk/CUST001 with valid Basic Auth, no explicit X-API-Key header                  | HTTP 200 — nginx injects correct key; FastAPI accepts                                | PENDING (runtime) — code review confirms `curl -u user:pass` only; asserts `STATUS_C = 200`                                    |
+| INV-02-FULLSTACK-A    | Full response headers of the HTTP 200 response do not contain the API_KEY value            | API_KEY absent from all response header lines                                        | PENDING (runtime) — `proxy_hide_header X-API-Key` also strips key from upstream response; `grep -qF "$API_KEY"` on RESP_HEADERS |
+| INV-02-FULLSTACK-B    | Full response body of the HTTP 200 response does not contain the API_KEY value             | API_KEY absent from response body JSON                                               | PENDING (runtime) — FastAPI returns only customer_id, tier, risk_factors; key not in any field; `grep -qF "$API_KEY"` on RESP_BODY |
+| INV-02-FULLSTACK-C    | Nginx access logs after all requests do not contain the API_KEY value                      | API_KEY absent from all nginx log lines                                              | PENDING (runtime) — `api_safe` log format logs remote_addr, time_local, request, status, bytes, referer, UA — no header values; `docker compose logs nginx` |
+| INV-02-FULLSTACK-D    | FastAPI logs after all requests do not contain the API_KEY value                           | API_KEY absent from all FastAPI/uvicorn log lines                                    | PENDING (runtime) — uvicorn access log format does not include request headers; `docker compose logs fastapi`                   |
+
+### Test Cases Added During Session
+
+| Case  | Scenario | Expected | Result | Source |
+|-------|----------|----------|--------|--------|
+| ADD-1 | None discovered | | | |
+
+---
+
+### Prediction Statement
+
+INV-01-FULLSTACK-A | Nginx `auth_basic` is applied at the server block level, before any `location` block processing. A request with no `Authorization` header receives HTTP 401 directly from Nginx. FastAPI is never proxied to.
+INV-01-FULLSTACK-B | `proxy_set_header X-API-Key ${API_KEY}` in the nginx config unconditionally sets the header in the upstream (proxied) request, replacing any client-supplied header of the same name. The client's `X-API-Key: wrong-key` is discarded; FastAPI receives the correct injected key and returns HTTP 200.
+INV-01-FULLSTACK-C | Standard authenticated path: Basic Auth passes Nginx, no X-API-Key sent by caller, Nginx injects the correct key, FastAPI validates and returns HTTP 200 with CUST001 risk data.
+INV-02-FULLSTACK-A | `proxy_hide_header X-API-Key` strips the header from FastAPI's upstream response. The injected key is only present in the Nginx→FastAPI leg and never in the Nginx→client response headers.
+INV-02-FULLSTACK-B | FastAPI's `RiskResponse` Pydantic model contains only `customer_id`, `tier`, and `risk_factors`. None of these fields are populated with the API_KEY value.
+INV-02-FULLSTACK-C | The `api_safe` log format contains `$remote_addr`, `$time_local`, `$request`, `$status`, `$body_bytes_sent`, `$http_referer`, `$http_user_agent`. No field captures `$http_x_api_key` or any upstream header value.
+INV-02-FULLSTACK-D | Uvicorn's default access log format is `{method} {path} HTTP/{version} {status_code}` — no request header values are logged.
+
+---
+
+### CC Challenge Output
+
+S7-T3 — What did you not test in this task?
+
+Items not tested:
+- Whether INV-01-FULLSTACK-B correctly fails when `proxy_set_header` is absent or misconfigured — the negative path requires a deliberately broken nginx config, outside scope.
+- Whether INV-02-FULLSTACK-C catches API_KEY leakage in the Nginx error log (as opposed to the access log) — `docker compose logs nginx` captures both stdout and stderr, so error log output is included; however, error log format was not separately audited.
+- Whether `docker compose logs` truncates output for long-running stacks — for the test duration (seconds) and request volume (3–4 requests), truncation is not expected.
+- Whether a non-ASCII or shell-special character in API_KEY would break the `grep -qF` check — `grep -F` treats the pattern as a fixed string, so special characters in API_KEY are safe; the only risk is an empty API_KEY (guarded at script start).
+- Whether FastAPI logs the X-API-Key value in an exception traceback (e.g. if a dependency raises and logs request context) — not tested; the implementation's `get_api_key` dependency raises `HTTPException` which uvicorn does not log with full request headers.
+
+Decision: negative-path nginx config test is outside scope. Error log format is implicitly covered by `docker compose logs`. Log truncation is not a concern at this scale. `grep -F` handles special characters. Exception traceback header logging is a hypothetical not reached by the current implementation. No additional test cases added.
+
+---
+
+### Code Review
+
+S7-T3 — Review `verify/s7_invariants_auth.sh`: confirm INV-01 auth path checks and INV-02 key-absence checks are correct.
+
+**INV-01-FULLSTACK-A** — `curl -s -o /dev/null -w "%{http_code}" "http://localhost:80/api/risk/CUST001"` — no `-u` flag, no `Authorization` header. Nginx `auth_basic` returns 401. Confirmed correct.
+
+**INV-01-FULLSTACK-B** — `-H "X-API-Key: wrong-key"` with `-u user:pass`. `proxy_set_header` in the nginx config replaces the header unconditionally; FastAPI receives the correct injected key. The script PASS branch for `$STATUS_B = "200"` includes the explanation inline. Both 200 and 401 pass with documentation; any other code fails. Confirmed correct and spec-compliant.
+
+**INV-01-FULLSTACK-C shared request** — `curl -s -D -` with `-u user:pass`, no `X-API-Key`. Response variable split: `RESP_HEADERS` via `awk '/^(\r)?$/{exit} {print}'` (prints until blank line); `RESP_BODY` via `awk 'found{print} /^(\r)?$/{found=1}'` (prints after blank line). Both patterns match the `curl -D -` output format where headers precede the blank separator. Confirmed correct.
+
+**INV-02-FULLSTACK-A/B** — `printf '%s' "$VAR" | grep -qF "$API_KEY"`. `printf '%s'` avoids `echo` escape-sequence interpretation; `-F` uses fixed-string matching safe against regex metacharacters in the key value. Offending lines printed via `grep -F "$API_KEY" | sed 's/^/    /'` for diagnostics. Confirmed correct.
+
+**INV-02-FULLSTACK-C/D** — `docker compose logs nginx` and `docker compose logs fastapi` capture all stdout/stderr since container start. The `api_safe` log format (confirmed in nginx.conf.template) does not include any header value fields. Uvicorn access log does not include request headers. `grep -qF "$API_KEY"` on the full log output. Confirmed correct.
+
+---
+
+### Scope Decisions
+
+S7-T3: All checks run through Nginx (port 80) — FastAPI port 8000 has no host mapping (`expose:` only) and is unreachable from the host. This is correct per the task spec ("checks run through the full Nginx → FastAPI path, not against FastAPI directly").
+
+S7-T3: INV-01-FULLSTACK-B is the only check where PASS does not imply a single correct outcome. The two PASS messages are structurally different to make the documented behaviour unambiguous in script output.
+
+S7-T3: `docker compose logs` is captured after all requests have been made, ensuring the log output includes traffic from this test run. There is no race between request completion and log capture because `docker compose logs` reads buffered container stdout — all writes from completed requests are already flushed.
+
+---
+
+**Status: VERIFIED (S7-T1, S7-T2 code review, S7-T3 code review) — Session 7 IN PROGRESS**
+**Engineer sign-off:** y vaishali rao — 2026-05-12

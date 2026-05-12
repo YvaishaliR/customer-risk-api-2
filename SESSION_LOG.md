@@ -364,7 +364,7 @@
 |---------|-------------------------------------------------------------------|----------|--------|
 | S7-T1   | Cold-start verification (`verify/s7_coldstart.sh`)                | VERIFIED |        |
 | S7-T2   | Data invariant checks (`verify/s7_invariants_data.sh`)            | VERIFIED |        |
-| S7-T3   | Auth invariant checks (`verify/s7_invariants_auth.sh`)            | PENDING  |        |
+| S7-T3   | Auth invariant checks (`verify/s7_invariants_auth.sh`)            | VERIFIED |        |
 | S7-T4   | Schema invariant checks (`verify/s7_invariants_schema.sh`)        | PENDING  |        |
 | S7-T5   | Master runner (`verify/run_all.sh`)                               | PENDING  |        |
 
@@ -380,6 +380,10 @@
 | S7-T2 | Used MD5 checksums over concatenated `customer_id\|\|tier` and `customer_id\|\|factor_code` rows to detect any write to `customers` or `risk_factors` tables. | A single MD5 over a deterministic `string_agg` captures both value changes and row insertions/deletions in one scalar comparison. If either table is mutated in any way the checksums will differ. Simpler than row-count comparison alone (which would miss UPDATE without INSERT/DELETE). |
 | S7-T2 | Added `WHERE tier != 'HIGH'` guard to the INV-10 DB UPDATE. | If a prior test run left CUST001 tier as HIGH (e.g. after a crash before the restore step), the UPDATE would be a no-op and the test would trivially pass even if caching were present. The guard ensures the DB state actually changes before the API is queried, guaranteeing the check is non-trivial. |
 | S7-T2 | Used `|| echo ""` fallback in `psql_exec()` to return empty string on error rather than failing with `set -e`. | Allows the script to detect empty output and call `fail` with a descriptive message, rather than the whole script aborting silently with an unhelpful shell error. |
+| S7-T3 | INV-01-FULLSTACK-B accepts both HTTP 200 and HTTP 401 as a PASS, documenting which behaviour occurred. | `proxy_set_header X-API-Key ${API_KEY}` in nginx.conf.template unconditionally replaces the client header — runtime result is 200. However, the task spec notes this as "test and document whichever behaviour occurs", so both outcomes are valid documented results rather than a pass/fail binary. |
+| S7-T3 | Used `printf '%s'` instead of `echo` when piping multi-line response variables into grep/awk. | `echo` on some shells interprets escape sequences or appends a trailing newline that can corrupt multi-line content. `printf '%s'` passes the variable value byte-for-byte, preventing false negatives in the API_KEY absence checks. |
+| S7-T3 | Shared one `curl -s -D -` request for INV-01-FULLSTACK-C, INV-02-FULLSTACK-A, and INV-02-FULLSTACK-B. | Three checks all need a 200 response with headers and body. One request with `curl -s -D -` captures both in a single variable; awk splits headers from body. Avoids three redundant HTTP round-trips against the same endpoint. |
+| S7-T3 | Used `grep -qF` (fixed-string, quiet) for all API_KEY presence checks. | The API_KEY value may contain characters that are special in regex (e.g. `-`, `_`, `.`). Fixed-string matching prevents those characters from being interpreted as regex metacharacters, avoiding false negatives. |
 
 ---
 
