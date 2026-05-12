@@ -240,7 +240,7 @@
 **Engineer:** y vaishali rao
 **Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
 **Claude.md version:** v1.0
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 
 ---
 
@@ -292,3 +292,63 @@
 **PR raised:** [ ] Yes — [PR link or number]
 **Status updated to:** COMPLETE
 **Engineer sign-off:** y vaishali rao — 2026-05-12
+
+---
+---
+
+## Session: Session 6 — Browser UI
+
+**Date started:** 2026-05-12
+**Engineer:** y vaishali rao
+**Branch:** https://github.com/YvaishaliR/customer-risk-api-2/tree/main
+**Claude.md version:** v1.0
+**Status:** IN PROGRESS
+
+---
+
+## Tasks
+
+| Task ID | Name                                              | Status   | Commit |
+|---------|---------------------------------------------------|----------|--------|
+| S6-T1   | Write the browser UI (`nginx/html/index.html`)    | VERIFIED |        |
+| S6-T2   | Integration check: browser UI (`verify/s6_ui.sh`) | PENDING  |        |
+
+<!-- Update status: PENDING → IN PROGRESS → VERIFIED → (optionally BLOCKED) -->
+<!-- Record commit hash after each VERIFIED task. Use 'Task N.N — ' prefix consistently. -->
+
+---
+
+## Decision Log
+
+| Task  | Decision made | Rationale |
+|-------|---------------|-----------|
+| S6-T1 | Used `.then`/`.catch`/`.finally` promise chain instead of `async`/`await`. | Eliminates need for a transpiler. All target browsers support the Fetch API and Promise chaining natively. Functionally equivalent; the promise chain is more explicit about async state transitions. |
+| S6-T1 | `autofocus` added to the input element. | TC-3 requires the input to be focused on page load. The task spec did not explicitly list `autofocus`, but it is the minimum correct implementation for the stated requirement. Flagged and applied. |
+| S6-T1 | All server-returned strings pass through `esc()` before `innerHTML` assignment. | Prevents XSS: `customer_id`, `tier`, `factor_code`, `factor_description` are displayed via `innerHTML` and must be entity-escaped. The tier value is also used as a CSS class suffix (`tier-LOW` etc.) — since tier is constrained to `{LOW,MEDIUM,HIGH}` by the DB CHECK constraint and Pydantic model, the class name is safe by construction, but the display text is still escaped. |
+
+---
+
+## Deviations
+
+| Task  | Deviation observed | Action taken |
+|-------|--------------------|--------------|
+| S6-T1 | `autofocus` not in original implementation; TC-3 ("input focused on page load") identified the gap. | Added `autofocus` attribute to the input element. One-line fix; no structural change to the file. |
+
+---
+
+## Claude.md Changes
+
+| Change | Reason | New Claude.md version | Tasks re-verified |
+|--------|--------|-----------------------|-------------------|
+| None   |        |                       |                   |
+
+---
+
+## Session Completion
+
+<!-- Fill in when all tasks in this session are VERIFIED. -->
+**Session integration check:** [ ] PASSED  [ ] FAILED (see notes)
+**All tasks verified:** [ ] Yes  [x] No — S6-T2 still PENDING
+**PR raised:** [ ] Yes — [PR link or number]
+**Status updated to:** IN PROGRESS
+**Engineer sign-off:** [ENGINEER: NAME AND DATE — do not leave blank before committing]

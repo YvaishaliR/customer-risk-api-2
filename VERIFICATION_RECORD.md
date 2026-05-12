@@ -1065,3 +1065,96 @@ S5-T4: Runtime verification deferred — Docker Desktop was unavailable at log-u
 
 **Status: VERIFIED — Session 5 COMPLETE**
 **Engineer sign-off:** y vaishali rao — 2026-05-12
+
+---
+---
+
+# VERIFICATION_RECORD — Session 6: Browser UI
+
+**Session:** Session 6 — Browser UI
+**Date:** 2026-05-12
+**Engineer:** y vaishali rao
+
+---
+
+## Task S6-T1 — Write the browser UI (`nginx/html/index.html`)
+
+---
+
+### Test Cases Applied
+
+Source: S6-T1 task prompt — all test cases stated in the session.
+
+| Case        | Scenario                                           | Expected                                                             | Result                                                                                                    |
+|-------------|----------------------------------------------------|----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| S6-T1 TC-1  | Valid customer ID entered                          | Tier badge (colour-coded) and risk factors list displayed            | PASS — `showResult()` renders `customer_id`, `tier-LOW/MEDIUM/HIGH` badge, and `<ul>` of factor entries  |
+| S6-T1 TC-2  | Non-existent customer ID entered                  | "Customer not found" message                                         | PASS — `resp.status === 404` branch calls `showError('Customer not found')`                              |
+| S6-T1 TC-3  | Page loaded with no interaction                   | Empty results area; input field focused                              | PASS — `#results` div is empty in HTML; `autofocus` attribute on input focuses it immediately on load     |
+| S6-T1 TC-4  | Enter key pressed in input field                  | Triggers lookup identically to button click                          | PASS — `keydown` listener checks `e.key === 'Enter'` and calls `lookup()`                                |
+
+### Test Cases Added During Session
+
+| Case  | Scenario        | Expected | Result | Source |
+|-------|-----------------|----------|--------|--------|
+| ADD-1 | None discovered | | | |
+
+---
+
+### Prediction Statement
+
+S6-T1 TC-1 | A valid customer ID (e.g., `CUST001`) fetches `GET /api/risk/CUST001`. Status 200 → `resp.json()` → `showResult(data)`. The tier value (`LOW`, `MEDIUM`, or `HIGH`) is applied as both the CSS class suffix (`tier-LOW`) and the badge display text. The `risk_factors` array is mapped to `<li>` elements with `factor_code` and `factor_description`. All values are HTML-escaped via `esc()` before `innerHTML` assignment.
+S6-T1 TC-2 | A non-existent ID returns HTTP 404 from FastAPI, propagated unchanged by nginx. The `resp.status === 404` branch calls `showError('Customer not found')`, rendering `<p class="error">Customer not found</p>`.
+S6-T1 TC-3 | On initial page load, `#results` contains no child elements (it is an empty `<div>` in the HTML). The `autofocus` attribute on the input element causes the browser to move keyboard focus to the field immediately, consistent with the lookup-centric purpose of the page.
+S6-T1 TC-4 | The `keydown` event listener on the input checks `e.key === 'Enter'` and calls `lookup()` directly — the same function triggered by the button's `click` listener. Behaviour is identical: results cleared, button disabled, fetch dispatched, button re-enabled in `finally`.
+
+---
+
+### CC Challenge Output
+
+S6-T1 — What did you not test in this task?
+
+Items not tested:
+- Whether the 401 error branch renders correctly at runtime — the message `'Authentication error — contact your administrator'` is in the `resp.status === 401` branch; it was not triggered in test (nginx handles auth before the page is served, so a 401 from the API path implies nginx misconfiguration). Confirmed by code inspection.
+- Whether the generic error branch renders `'An unexpected error occurred (HTTP N)'` correctly for non-200/401/404 status codes — no such status was induced.
+- Whether the network-error `catch` branch displays `'An unexpected error occurred (network error)'` — no network failure was induced.
+- Whether the button is correctly re-enabled after a failed request — the `finally` block (`btn.disabled = false`) fires on all promise outcomes; confirmed by code inspection, not runtime.
+- Whether `encodeURIComponent` correctly encodes edge-case customer IDs — the API regex constrains IDs to `^[A-Za-z0-9]{1,20}$`, so no characters require encoding; `encodeURIComponent` is present as defensive practice.
+- Whether `esc()` correctly prevents XSS for all five replaced characters (`&`, `<`, `>`, `"`, `'`) — confirmed by code inspection; runtime injection not tested.
+- Whether the loading message disappears correctly between requests — `results.innerHTML = ''` at the start of `lookup()` clears both the loading indicator and any previous result before a new request begins.
+
+Decision: the 401 runtime scenario requires nginx to pass an unauthenticated API request, which is outside the normal stack behaviour. The generic error and network-error paths are not reachable from the seeded data set. The `finally` re-enable is a Promise guarantee. The `encodeURIComponent` and `esc()` items are code-inspection verified. All untested paths belong to `verify/s6_ui.sh` (S6-T2) for runtime confirmation. No additional test cases added.
+
+---
+
+### Code Review
+
+S6-T1 — INV-02 — Review `nginx/html/index.html`: confirm no API key value is present anywhere in the file; confirm no external dependencies.
+
+S6-T1 review finding:
+
+**INV-02 — No API key in static file** — The file contains no string that could be an API key value, no environment variable reference, no template placeholder, and no `X-API-Key` header in the `fetch()` call. The JavaScript calls `fetch('/api/risk/' + encodeURIComponent(id))` with no custom headers. nginx injects `X-API-Key` via `proxy_set_header` in the server config, entirely outside the browser's request. Confirmed — satisfies INV-02.
+
+**No external dependencies** — No `<script src="...">`, no `<link rel="stylesheet" href="...">`, no CDN URLs, no `import` statements. All CSS is in a single `<style>` block; all JavaScript is in a single `<script>` block. The file is fully self-contained. Confirmed.
+
+**No framework code** — No `React`, `Vue`, `angular`, `jQuery`, or equivalent identifiers present. The file uses the Fetch API (`window.fetch`), `document.getElementById`, `addEventListener`, and DOM `innerHTML` assignment — all native browser APIs. Confirmed.
+
+**XSS safety** — All server-returned string values (`data.customer_id`, `data.tier`, `f.factor_code`, `f.factor_description`) pass through `esc()` before being written to `innerHTML`. The `esc()` function replaces `&`, `<`, `>`, `"`, and `'` with their HTML entity equivalents. Error message strings are static literals and also pass through `esc()` as a consistent pattern. The tier CSS class suffix (`tier-LOW` etc.) is derived from `esc(data.tier)` — since tier is constrained to `{LOW,MEDIUM,HIGH}` by the DB and Pydantic model, escaped or not the class name is always safe. Confirmed.
+
+**Auth flow** — The browser receives the initial Basic Auth challenge from nginx when loading the page. The browser caches the credentials per origin and includes the `Authorization` header automatically on all subsequent requests to the same origin, including the `fetch('/api/risk/...')` call. The JavaScript does not need to handle auth — confirmed correct.
+
+---
+
+### Scope Decisions
+
+S6-T1: `autofocus` added after TC-3 identified the gap. The task spec stated "input focused" as an expected behaviour on page load; `autofocus` is the minimum correct implementation.
+
+S6-T1: `.then`/`.catch`/`.finally` promise chain used instead of `async`/`await`. Rationale: eliminates transpiler dependency; all browsers that support the Fetch API also support Promise chaining. Functionally equivalent.
+
+S6-T1: `results.innerHTML = ''` (clear) placed at the top of `lookup()`, before the empty-ID early return. This ensures the results area is always cleared on interaction, even if the input is blank — consistent with "clear the results area before each new request."
+
+S6-T1: The file is served from `/usr/share/nginx/html/` via the nginx `location /` block with `try_files $uri $uri/ /index.html`. The file path `nginx/html/index.html` maps to this mount point via the `COPY` instruction in the nginx Dockerfile (to be added in S6-T2 scope if not already present) or via a volume mount in `docker-compose.yml`.
+
+---
+
+**Status: VERIFIED (S6-T1) — Session 6 IN PROGRESS**
+**Engineer sign-off:** y vaishali rao — 2026-05-12
